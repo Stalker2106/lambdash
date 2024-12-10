@@ -1,0 +1,11 @@
+[package]
+name = "lambdash"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "lambdash"
+path = "main.rs"
+
+[dependencies]
+console = "0.15.8"
