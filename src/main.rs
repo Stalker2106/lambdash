@@ -1,10 +1,19 @@
-use std::io::{Write, stdout};
+use std::io::{stdout, stderr};
 extern crate crossterm;
 
 use crossterm::{
-    cursor, QueueableCommand, event::{
-        read, Event, KeyCode
-    }
+    cursor,
+    event::{
+        read,
+        Event,
+        KeyCode, KeyModifiers
+    },
+    style::{Color, Print, ResetColor, SetForegroundColor},
+    terminal::{
+        Clear,
+        ClearType
+    },
+    QueueableCommand
 };
 
 mod core;
@@ -14,73 +23,170 @@ mod builtins;
 mod prompt;
 mod history;
 
-use core::ShellError;
+use core::{ShellError, ShellState};
 use prompt::Prompt;
 use history::History;
 use eval::eval;
 
+fn clear_prompt_input(state: &mut ShellState, prompt: &Prompt) {
+    let p_cursor = prompt.get_cursor();
+    if p_cursor > 0 {
+        state.stdout.queue(cursor::MoveLeft(p_cursor as u16)).unwrap();
+    }
+    state.stdout.queue(Clear(ClearType::UntilNewLine)).unwrap();
+}
+
+use crossterm::tty::IsTty;
+
 fn main() {
-    let running = true;
     let mut stdout = stdout();
+    let mut stderr = stderr();
+    let mut state: ShellState = ShellState::new(&mut stdout, &mut stderr);
     let mut prompt = Prompt::new();
     let mut history = History::new();
-    let mut status: u8 = 0;
     // main loop
-    while running {
+    while state.running {
         let mut reading: bool = true;
-        stdout.write(prompt.get_ps1().as_bytes());
-        stdout.flush().unwrap();
+        let ps1buf = prompt.get_ps1(&mut state);
+        state.stdout.queue(Print(ps1buf)).unwrap();
+        state.stdout.flush().unwrap();
+        let mut history_idx: Option<usize> = None;
         // read loop
+        crossterm::terminal::enable_raw_mode().unwrap();
         while reading {
             if let Ok(e) = read() {
                 match e {
                     Event::Key(event) => {
-                        match event.code {
-                            KeyCode::Char(c) => {
-                                prompt.add_char(c);
-                                stdout.queue(cursor::MoveRight(1)).unwrap();
+                        if event.modifiers.contains(KeyModifiers::CONTROL) {
+                            match event.code {
+                                KeyCode::Char(c) => {
+                                    match c {
+                                        'c' => {
+                                            prompt.clear_input();
+                                            state.stdout.queue(Print("^C\n")).unwrap()
+                                                        .queue(cursor::MoveToNextLine(1)).unwrap();
+                                            reading = false;
+                                        },
+                                        'd' => {
+                                            state.stdout.queue(Print("^D")).unwrap();
+                                        }
+                                        _ => ()
+                                    }
+                                }
+                                _ => ()
                             }
-                            KeyCode::Left => {
-                                prompt.move_cursor(-1);
-                                stdout.queue(cursor::MoveLeft(1)).unwrap();
-                            },
-                            KeyCode::Right => {
-                                prompt.move_cursor(1);
-                                stdout.queue(cursor::MoveLeft(1)).unwrap();
-                            },
-                            KeyCode::Up => (),
-                            KeyCode::Down => (),
-                            KeyCode::Tab => (),
-                            KeyCode::Backspace => {
-                                prompt.remove_char();
-                                stdout.queue(cursor::MoveLeft(1)).unwrap();
-                            },
-                            KeyCode::Enter => {
-                                reading = false;
-                                stdout.queue(cursor::MoveToNextLine(1)).unwrap();
-                            },
-                            _ => ()
+                        } else {
+                            match event.code {
+                                KeyCode::Char(c) => {
+                                    prompt.add_char(c);
+                                    let p_cursor = prompt.get_cursor();
+                                    state.stdout.queue(Print(c)).unwrap();
+                                    // if we are inserting, we need to print rest of buffer to preserve it
+                                    if p_cursor < prompt.get_input().len() {
+                                        let rest = &prompt.get_input()[p_cursor..];
+                                        state.stdout.queue(Print(rest)).unwrap()
+                                                    .queue(cursor::MoveLeft(rest.len() as u16)).unwrap();
+                                    }
+                                }
+                                KeyCode::Left => {
+                                    if let Some(moved) = prompt.move_cursor_left(1) {
+                                        state.stdout.queue(cursor::MoveLeft(moved as u16)).unwrap();
+                                    }
+                                },
+                                KeyCode::Right => {
+                                    if let Some(moved) = prompt.move_cursor_right(1) {
+                                        state.stdout.queue(cursor::MoveRight(moved as u16)).unwrap();
+                                    }
+                                },
+                                KeyCode::Up => {
+                                    if !history_idx.is_some() {
+                                        let index = history.get_first_index();
+                                        if index.is_some() {
+                                            history_idx = index;
+                                            prompt.stash_input();
+                                            clear_prompt_input(&mut state, &prompt);
+                                            prompt.set_input(history.get(history_idx.unwrap()));
+                                            state.stdout.queue(Print(prompt.get_input())).unwrap();
+                                        }
+                                    } else {
+                                        if history_idx.unwrap() > 0 {
+                                            history_idx = Some(history_idx.unwrap() - 1);
+                                            clear_prompt_input(&mut state, &prompt);
+                                            prompt.set_input(history.get(history_idx.unwrap()));
+                                            state.stdout.queue(Print(prompt.get_input())).unwrap();
+                                        }
+                                    }
+                                },
+                                KeyCode::Down => {
+                                    if history_idx.is_some() {
+                                        if let Some(last_index) = history.get_first_index() {
+                                            if history_idx.unwrap() < last_index {
+                                                history_idx = Some(history_idx.unwrap() + 1);
+                                                clear_prompt_input(&mut state, &prompt);
+                                                prompt.set_input(history.get(history_idx.unwrap()));
+                                                state.stdout.queue(Print(prompt.get_input())).unwrap();
+                                            } else {
+                                                history_idx = None;
+                                                clear_prompt_input(&mut state, &prompt);
+                                                prompt.unstash_input();
+                                                state.stdout.queue(Print(prompt.get_input())).unwrap();
+                                            }
+                                        }
+                                    }
+                                },
+                                KeyCode::Tab => (),
+                                KeyCode::Backspace => {
+                                    if prompt.remove_char() {
+                                        state.stdout.queue(cursor::MoveLeft(1)).unwrap()
+                                                    .queue(Clear(ClearType::UntilNewLine)).unwrap();
+                                        let p_cursor = prompt.get_cursor();
+                                        let rest = &prompt.get_input()[p_cursor..];
+                                        state.stdout.queue(Print(rest)).unwrap();
+                                        if rest.len() > 0 {
+                                            state.stdout.queue(cursor::MoveLeft(rest.len() as u16)).unwrap();
+                                        }
+                                    }
+                                },
+                                KeyCode::Enter => {
+                                    reading = false;
+                                    state.stdout.queue(Print("\n")).unwrap()
+                                                .queue(cursor::MoveToNextLine(1)).unwrap();
+                                },
+                                _ => ()
+                            }
                         }
-                        stdout.flush().unwrap();
+                        state.stdout.flush().unwrap();
                     }
                     _ => ()
                 }
             }
         }
+        crossterm::terminal::disable_raw_mode().unwrap();
         if prompt.has_input() {
             let input: &String = prompt.get_input();
-            history.submit_value(input);
-            match eval(&mut stdout, input) {
+            history.submit(input);
+            match eval(&mut state, input) {
                 Ok(s) => {
                     if let Some(res) = s {
-                        status = res;
+                        state.status = res;
                     }
                 }
                 Err(e) => {
                     match e {
-                        ShellError::Execution(error) => stdout.write(format!("Error: {}\n", error.details).as_bytes()).unwrap(),
-                        ShellError::Tokenization(error) => stdout.write(format!("Error: {}\n", error.details).as_bytes()).unwrap()
+                        ShellError::Execution(error) => {
+                            state.status = error.status;
+                            state.stdout.queue(SetForegroundColor(Color::Red)).unwrap()
+                                        .queue(Print(format!("Error: {}\n", error.details))).unwrap()
+                                        .queue(ResetColor).unwrap();
+                        },
+                        ShellError::Tokenization(error) => {
+                            state.status = error.status;
+                            state.stdout.queue(SetForegroundColor(Color::Red)).unwrap()
+                                        .queue(Print(format!("Error: {}\n", error.details))).unwrap()
+                                        .queue(ResetColor).unwrap();
+                        }
                     };
+                    state.stdout.queue(cursor::MoveToNextLine(1)).unwrap();
                 }
             }
             prompt.clear_input();

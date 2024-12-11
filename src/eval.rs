@@ -1,12 +1,12 @@
 
 use std::env;
 use std::process::Stdio;
-use std::io::Write;
 use std::process::Command;
 use std::collections::VecDeque;
 
 use crate::core::ShellError;
-use crate::tokenizer::tokenize;
+use crate::core::ShellState;
+use crate::tokenizer::{tokenize, parse_variable};
 use crate::tokenizer::Token;
 use crate::builtins::match_builtin;
 
@@ -22,16 +22,42 @@ impl ExecutionError {
     }
 }
 
-pub fn expand_tokens(tokens: &mut Vec<Token>) {
+pub fn expand_variable(state: &mut ShellState, var: &str) -> Option<String> {
+    match var {
+        "?" => Some(state.status.to_string()),
+        _ => env::var(var).ok(),
+    }
+}
+
+pub fn expand_expr(state: &mut ShellState, expr: &String) -> String {
+    let mut chars = expr.chars().peekable();
+    let mut expanded_expr = String::new();
+    
+    while let Some(c) = chars.next() {
+        match c {
+            '$' => {
+                let varname = parse_variable(&mut chars);
+                match expand_variable(state, &varname) {
+                    Some(value) => expanded_expr.push_str(&value),
+                    None => expanded_expr.push_str(&varname)
+                }
+            }
+            _ => expanded_expr.push(c)
+        }
+    }
+    return expanded_expr;
+}
+
+pub fn expand_tokens(state: &mut ShellState, tokens: &mut Vec<Token>) {
     let mut i = 0;
     while i < tokens.len() {
         match &tokens[i] {
-            Token::Variable(var) => {
-                match env::var(var) {
-                    Ok(value) => {
+            Token::Variable(token_value) => {
+                match expand_variable(state, &token_value) {
+                    Some(value) => {
                         tokens[i] = Token::Word(value.to_string());
                     },
-                    Err(_error) => {
+                    None => {
                         tokens.remove(i);
                         continue; // Skip incrementing since we removed
                     }
@@ -43,7 +69,7 @@ pub fn expand_tokens(tokens: &mut Vec<Token>) {
     }
 }
 
-pub fn eval_tokens(stdout: &mut dyn Write, tokens: &Vec<Token>) -> Result<Option<u8>, ShellError> {
+pub fn eval_tokens(state: &mut ShellState, tokens: &Vec<Token>) -> Result<Option<u8>, ShellError> {
     let mut args: VecDeque<&str> = VecDeque::new();
     let mut action: Option<&Token> = None;
     let mut status: Option<u8> = None;
@@ -51,12 +77,12 @@ pub fn eval_tokens(stdout: &mut dyn Write, tokens: &Vec<Token>) -> Result<Option
         match token {
             Token::EndOfInput => {
                 if let Some(command) = args.pop_front() {
-                    match match_builtin(stdout, &command, &args) {
+                    match match_builtin(state, &command, &args) {
                         Ok(res) => {
                             if res.is_some() {
                                 status = res;
                             } else {
-                                match execute(stdout, command, &args) {
+                                match execute(state, command, &args) {
                                     Ok(code) => status = Some(code),
                                     Err(error) => return Err(error)
                                 }
@@ -86,12 +112,12 @@ pub fn eval_tokens(stdout: &mut dyn Write, tokens: &Vec<Token>) -> Result<Option
     Ok(status)
 }
 
-pub fn eval(stdout: &mut dyn Write, expr: &String) -> Result<Option<u8>, ShellError> {
+pub fn eval(state: &mut ShellState, expr: &String) -> Result<Option<u8>, ShellError> {
     match tokenize(expr) {
         Ok(mut tokens) => {
             if tokens.len() > 0 {
-                expand_tokens(&mut tokens);
-                return eval_tokens(stdout, &tokens)
+                expand_tokens(state, &mut tokens);
+                return eval_tokens(state, &tokens)
             }
             return Ok(None)
         },
@@ -99,11 +125,15 @@ pub fn eval(stdout: &mut dyn Write, expr: &String) -> Result<Option<u8>, ShellEr
     };
 }
 
-pub fn execute(stdout: &mut dyn Write, command: &str, args: &VecDeque<&str>) -> Result<u8, ShellError> {
-    match Command::new(command).args(args).stdout(Stdio::piped()).stderr(Stdio::piped()).output() {
+pub fn execute(state: &mut ShellState, command: &str, args: &VecDeque<&str>) -> Result<u8, ShellError> {
+    match Command::new(command)
+                  .args(args)
+                  .stdout(Stdio::piped())
+                  .stderr(Stdio::piped())
+                  .output() {
         Ok(output) => {
-            stdout.write_all(&output.stdout).unwrap();
-            stdout.write_all(&output.stderr).unwrap();
+            state.stdout.write_all(&output.stdout).unwrap();
+            state.stdout.write_all(&output.stderr).unwrap();
             match output.status.code() {
                 Some(code) => return Ok(code as u8),
                 None => return Ok(0)

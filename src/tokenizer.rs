@@ -1,3 +1,4 @@
+use std::iter::Peekable;
 
 pub enum Token {
     Word(String),
@@ -13,13 +14,29 @@ const RESERVED_CHARS: &str = "\"';|&$<>";
 
 #[derive(Debug)]
 pub struct TokenizationError {
-    pub details: String
+    pub details: String,
+    pub status: u8,
 }
 
 impl TokenizationError {
-    fn new(msg: String) -> TokenizationError {
-        TokenizationError{details: msg.to_string()}
+    fn new(code: u8, msg: String) -> TokenizationError {
+        TokenizationError{
+            status: code,
+            details: msg.to_string()
+        }
     }
+}
+
+pub fn parse_variable(iter: &mut Peekable<std::str::Chars>) -> String {
+    let mut var = String::new();
+    while let Some(&next) = iter.peek() {
+        if next.is_alphanumeric() || next == '_' || (var.len() == 0 && next == '?') {
+            var.push(iter.next().unwrap());
+        } else {
+            break;
+        }
+    }
+    return var;
 }
 
 pub fn tokenize(input: &String) -> Result<Vec<Token>, TokenizationError> {
@@ -61,15 +78,7 @@ pub fn tokenize(input: &String) -> Result<Vec<Token>, TokenizationError> {
                 }
             },
             '$' => {
-                let mut var = String::new();
-                while let Some(&next) = chars.peek() {
-                    if next.is_alphanumeric() || next == '_' {
-                        var.push(chars.next().unwrap());
-                    } else {
-                        break;
-                    }
-                }
-                tokens.push(Token::Variable(var));
+                tokens.push(Token::Variable(parse_variable(&mut chars)));
             },
             '\'' | '"' => {
                 let mut closed = false;
@@ -84,7 +93,7 @@ pub fn tokenize(input: &String) -> Result<Vec<Token>, TokenizationError> {
                     word.push(chars.next().unwrap());
                 }
                 if !closed {
-                    return Err(TokenizationError::new(format!("Unterminated quote {} found.", quote)));
+                    return Err(TokenizationError::new(127, format!("Unterminated quote {} found.", quote)));
                 }
                 tokens.push(Token::Word(word));
             },
