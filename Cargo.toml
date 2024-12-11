@@ -5,7 +5,7 @@ edition = "2021"
 
 [[bin]]
 name = "lambdash"
-path = "main.rs"
+path = "src/main.rs"
 
 [dependencies]
-console = "0.15.8"
+crossterm = "0.28.1"

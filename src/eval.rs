@@ -5,7 +5,8 @@ use std::io::Write;
 use std::process::Command;
 use std::collections::VecDeque;
 
-use crate::shell::Shell;
+use crate::core::ShellError;
+use crate::tokenizer::tokenize;
 use crate::tokenizer::Token;
 use crate::builtins::match_builtin;
 
@@ -21,7 +22,7 @@ impl ExecutionError {
     }
 }
 
-pub fn preprocess_tokens(tokens: &mut Vec<Token>) {
+pub fn expand_tokens(tokens: &mut Vec<Token>) {
     let mut i = 0;
     while i < tokens.len() {
         match &tokens[i] {
@@ -42,21 +43,26 @@ pub fn preprocess_tokens(tokens: &mut Vec<Token>) {
     }
 }
 
-pub fn execute_tokens(shell: &mut Shell, tokens: &Vec<Token>) -> Result<u8, ExecutionError> {
+pub fn eval_tokens(stdout: &mut dyn Write, tokens: &Vec<Token>) -> Result<Option<u8>, ShellError> {
     let mut args: VecDeque<&str> = VecDeque::new();
     let mut action: Option<&Token> = None;
-    let mut status: u8 = shell.status; 
+    let mut status: Option<u8> = None;
     for token in tokens {
         match token {
             Token::EndOfInput => {
                 if let Some(command) = args.pop_front() {
-                    if let Some(code) = match_builtin(&command, &args) {
-                        status = code;
-                    } else {
-                        match execute(command, &args) {
-                            Ok(code) => status = code,
-                            Err(error) => return Err(error)
-                        }
+                    match match_builtin(stdout, &command, &args) {
+                        Ok(res) => {
+                            if res.is_some() {
+                                status = res;
+                            } else {
+                                match execute(stdout, command, &args) {
+                                    Ok(code) => status = Some(code),
+                                    Err(error) => return Err(error)
+                                }
+                            }
+                        },
+                        Err(error) => return Err(error)
                     }
                 }
                 args.clear();
@@ -64,13 +70,13 @@ pub fn execute_tokens(shell: &mut Shell, tokens: &Vec<Token>) -> Result<u8, Exec
             Token::Word(w) => args.push_back(w.as_str()),
             Token::Redirection(r) => {
                 if action.is_some() {
-                    return Err(ExecutionError::new(status, format!("invalid redirection {}", r)));
+                    return Err(ShellError::Execution(ExecutionError::new(123, format!("invalid redirection {}", r))));
                 }
                 action = Some(token);
             }
             Token::Pipe => {
                 if action.is_some() {
-                    return Err(ExecutionError::new(status, format!("invalid pipe")));
+                    return Err(ShellError::Execution(ExecutionError::new(127, format!("invalid pipe"))));
                 }
                 action = Some(token);
             }
@@ -80,18 +86,31 @@ pub fn execute_tokens(shell: &mut Shell, tokens: &Vec<Token>) -> Result<u8, Exec
     Ok(status)
 }
 
-pub fn execute(command: &str, args: &VecDeque<&str>) -> Result<u8, ExecutionError> {
+pub fn eval(stdout: &mut dyn Write, expr: &String) -> Result<Option<u8>, ShellError> {
+    match tokenize(expr) {
+        Ok(mut tokens) => {
+            if tokens.len() > 0 {
+                expand_tokens(&mut tokens);
+                return eval_tokens(stdout, &tokens)
+            }
+            return Ok(None)
+        },
+        Err(error) => return Err(ShellError::Tokenization(error))
+    };
+}
+
+pub fn execute(stdout: &mut dyn Write, command: &str, args: &VecDeque<&str>) -> Result<u8, ShellError> {
     match Command::new(command).args(args).stdout(Stdio::piped()).stderr(Stdio::piped()).output() {
         Ok(output) => {
-            std::io::stdout().write_all(&output.stdout).unwrap();
-            std::io::stderr().write_all(&output.stderr).unwrap();
+            stdout.write_all(&output.stdout).unwrap();
+            stdout.write_all(&output.stderr).unwrap();
             match output.status.code() {
                 Some(code) => return Ok(code as u8),
                 None => return Ok(0)
             };
         },
         Err(_error) => {
-            return Err(ExecutionError::new(127, format!("{}: command not found", command)));
+            return Err(ShellError::Execution(ExecutionError::new(127, format!("{}: command not found", command))));
         }
     }
 }
