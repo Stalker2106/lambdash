@@ -1,4 +1,6 @@
 use std::iter::Peekable;
+use std::process::ExitStatus;
+use std::os::unix::process::ExitStatusExt;
 
 pub enum Token {
     Word(String),
@@ -15,13 +17,13 @@ const RESERVED_CHARS: &str = "\"';|&$<>";
 #[derive(Debug)]
 pub struct TokenizationError {
     pub details: String,
-    pub status: u8,
+    pub status: ExitStatus,
 }
 
 impl TokenizationError {
-    fn new(code: u8, msg: String) -> TokenizationError {
+    fn new(code: i32, msg: String) -> TokenizationError {
         TokenizationError{
-            status: code,
+            status: ExitStatus::from_raw(code),
             details: msg.to_string()
         }
     }

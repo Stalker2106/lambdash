@@ -1,7 +1,6 @@
 use std::io::{stdout, stderr};
 extern crate crossterm;
 
-use std::collections::VecDeque;
 use crossterm::{
     cursor,
     event::{
@@ -24,13 +23,13 @@ mod eval;
 mod builtins;
 mod prompt;
 mod promptscript;
-mod voutput;
+mod cmdoutput;
 mod history;
 
 use core::{ShellError, ShellState};
 use prompt::Prompt;
 use history::History;
-use eval::{eval_expr, execute};
+use eval::eval_expr;
 
 fn clear_prompt_input(state: &mut ShellState, prompt: &Prompt) {
     let p_cursor = prompt.get_cursor();
@@ -47,14 +46,13 @@ fn main() {
     let mut prompt = Prompt::new();
     let mut history = History::new();
     // main loop
-    while state.running {
-        let mut reading: bool = true;
+    loop {
         prompt.print_ps1(&mut state);
         state.stdout.flush().unwrap();
         let mut history_idx: Option<usize> = None;
         // read loop
         crossterm::terminal::enable_raw_mode().unwrap();
-        while reading {
+        loop {
             if let Ok(e) = read() {
                 match e {
                     Event::Key(event) => {
@@ -66,13 +64,16 @@ fn main() {
                                             prompt.clear_input();
                                             state.stdout.queue(Print("^C\n")).unwrap()
                                                         .queue(cursor::MoveToNextLine(1)).unwrap();
-                                            reading = false;
+                                            break;
                                         },
                                         'd' => {
-                                            state.stdout.queue(Print("^D")).unwrap();
+                                            if !prompt.has_input() {
+                                                break;
+                                            }
                                         }
                                         'l' => {
-                                            execute(&mut state, "clear", &VecDeque::new()).unwrap();
+                                            state.stdout.queue(Clear(ClearType::All)).unwrap()
+                                                        .queue(cursor::MoveTo(0,0)).unwrap();
                                             prompt.print_ps1(&mut state);
                                             let input = &prompt.get_input();
                                             state.stdout.queue(Print(input)).unwrap();
@@ -160,9 +161,10 @@ fn main() {
                                     }
                                 },
                                 KeyCode::Enter => {
-                                    reading = false;
+                                    prompt.append_char('\n');
                                     state.stdout.queue(Print("\n")).unwrap()
                                                 .queue(cursor::MoveToNextLine(1)).unwrap();
+                                    break;
                                 },
                                 _ => ()
                             }
@@ -178,9 +180,19 @@ fn main() {
             let input: &String = prompt.get_input();
             history.submit(input);
             match eval_expr(&mut state, input) {
-                Ok(s) => {
-                    if let Some(res) = s {
-                        state.status = res;
+                Ok(res) => {
+                    if let Some(output) = res {
+                        state.status = output.status;
+                        if let Some(cmd_stdout) = output.stdout {
+                            if let Ok(cmd_out) = String::from_utf8(cmd_stdout) {
+                                state.stdout.queue(Print(cmd_out)).unwrap();
+                            }
+                        }
+                        if let Some(cmd_stderr) = output.stderr {
+                            if let Ok(cmd_err) = String::from_utf8(cmd_stderr) {
+                                state.stderr.queue(Print(cmd_err)).unwrap();
+                            }
+                        }
                     }
                 }
                 Err(e) => {
@@ -198,12 +210,16 @@ fn main() {
                                         .queue(Print(format!("syntax error: {}", error.details))).unwrap()
                                         .queue(ResetColor).unwrap()
                                         .queue(Print("\n")).unwrap();
-                        }
+                        },
+                        ShellError::ExitRequest() => break
                     };
                     state.stdout.queue(cursor::MoveToNextLine(1)).unwrap();
                 }
             }
             prompt.clear_input();
+        } else {
+            state.stdout.queue(Print("exit\n")).unwrap();
+            break;
         }
     }
 }

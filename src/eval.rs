@@ -1,28 +1,32 @@
 
 use std::env;
-use std::process::Stdio;
-use std::process::Command;
+use std::process::{ExitStatus, Stdio, Command};
+use std::os::unix::process::ExitStatusExt;
 use std::collections::VecDeque;
 
+use crate::cmdoutput::CmdOutput;
 use crate::core::{ShellError, ShellState};
 use crate::tokenizer::{Token, tokenize};
 use crate::builtins::match_builtin;
 
 #[derive(Debug)]
 pub struct ExecutionError {
-    pub status: u8,
+    pub status: ExitStatus,
     pub details: String
 }
 
 impl ExecutionError {
-    fn new(code: u8, msg: String) -> ExecutionError {
-        ExecutionError{status: code, details: msg.to_string()}
+    pub fn new(code: i32, msg: String) -> ExecutionError {
+        ExecutionError{status: ExitStatus::from_raw(code), details: msg.to_string()}
     }
 }
 
 pub fn expand_variable(state: &mut ShellState, var: &str) -> Option<String> {
     match var {
-        "?" => Some(state.status.to_string()),
+        "?" => match state.status.code() {
+            Some(code) => Some(format!("{}", code)),
+            None => Some("".to_string())
+        }
         _ => env::var(var).ok(),
     }
 }
@@ -48,22 +52,22 @@ pub fn expand_tokens(state: &mut ShellState, tokens: &mut Vec<Token>) {
     }
 }
 
-pub fn eval_tokens(state: &mut ShellState, tokens: &Vec<Token>) -> Result<Option<u8>, ShellError> {
+pub fn eval_tokens(tokens: &Vec<Token>) -> Result<Option<CmdOutput>, ShellError> {
     let mut args: VecDeque<&str> = VecDeque::new();
     let mut action: Option<&Token> = None;
-    let mut status: Option<u8> = None;
+    let mut output: Option<CmdOutput> = None;
     for token in tokens {
         match token {
             Token::EndOfInput => {
                 if let Some(command) = args.pop_front() {
-                    match match_builtin(state, &command, &args) {
-                        Ok(res) => {
-                            if res.is_some() {
-                                status = res;
+                    match match_builtin(&command, &args) {
+                        Ok(builtin_out) => {
+                            if builtin_out.is_some() {
+                                output = builtin_out;
                             } else {
-                                match execute(state, command, &args) {
-                                    Ok(code) => status = Some(code),
-                                    Err(error) => return Err(error)
+                                match execute(command, &args) {
+                                    Ok(out) => output = out,
+                                    Err(err) => return Err(err)
                                 }
                             }
                         },
@@ -88,15 +92,15 @@ pub fn eval_tokens(state: &mut ShellState, tokens: &Vec<Token>) -> Result<Option
             _ => continue
         }
     }
-    Ok(status)
+    return Ok(output);
 }
 
-pub fn eval_expr(state: &mut ShellState, expr: &String) -> Result<Option<u8>, ShellError> {
+pub fn eval_expr(state: &mut ShellState, expr: &String) -> Result<Option<CmdOutput>, ShellError> {
     match tokenize(expr) {
         Ok(mut tokens) => {
             if tokens.len() > 0 {
                 expand_tokens(state, &mut tokens);
-                return eval_tokens(state, &tokens)
+                return eval_tokens(&tokens)
             }
             return Ok(None)
         },
@@ -104,22 +108,13 @@ pub fn eval_expr(state: &mut ShellState, expr: &String) -> Result<Option<u8>, Sh
     };
 }
 
-pub fn execute(state: &mut ShellState, command: &str, args: &VecDeque<&str>) -> Result<u8, ShellError> {
+pub fn execute(command: &str, args: &VecDeque<&str>) -> Result<Option<CmdOutput>, ShellError> {
     match Command::new(command)
                   .args(args)
                   .stdout(Stdio::piped())
                   .stderr(Stdio::piped())
                   .output() {
-        Ok(output) => {
-            state.stdout.write_all(&output.stdout).unwrap();
-            state.stdout.write_all(&output.stderr).unwrap();
-            match output.status.code() {
-                Some(code) => return Ok(code as u8),
-                None => return Ok(0)
-            };
-        },
-        Err(_error) => {
-            return Err(ShellError::Execution(ExecutionError::new(127, format!("{}: command not found", command))));
-        }
+        Ok(output) => Ok(Some(CmdOutput::from_output(&output))),
+        Err(_error) => Err(ShellError::Execution(ExecutionError::new(127, format!("{}: command not found", command))))
     }
 }

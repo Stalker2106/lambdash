@@ -1,4 +1,6 @@
 use std::io::Write;
+use std::process::ExitStatus;
+use std::os::unix::process::ExitStatusExt;
 use crate::config::{ShellConfig, load};
 use crate::eval::ExecutionError;
 use crate::tokenizer::TokenizationError;
@@ -6,7 +8,8 @@ use crate::tokenizer::TokenizationError;
 #[derive(Debug)]
 pub enum ShellError {
     Tokenization(TokenizationError),
-    Execution(ExecutionError)
+    Execution(ExecutionError),
+    ExitRequest()
 }
 
 impl From<ExecutionError> for ShellError {
@@ -22,8 +25,7 @@ impl From<TokenizationError> for ShellError {
 }
 
 pub struct ShellState<'a> {
-    pub status: u8,
-    pub running: bool,
+    pub status: ExitStatus,
     pub config: ShellConfig,
     pub stdout: &'a mut dyn Write,
     pub stderr: &'a mut dyn Write
@@ -32,8 +34,7 @@ pub struct ShellState<'a> {
 impl<'a> ShellState<'a> {
     pub fn new(out: &'a mut dyn Write, err: &'a mut dyn Write) -> ShellState<'a> {
         ShellState {
-            status: 0,
-            running: true,
+            status: ExitStatus::from_raw(0),
             config: load(),
             stdout: out,
             stderr: err,

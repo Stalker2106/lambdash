@@ -29,6 +29,10 @@ impl Prompt {
         self.cursor += 1;
     }
 
+    pub fn append_char(&mut self, c: char) {
+        self.input.push(c);
+    }
+
     pub fn remove_char(&mut self) -> bool {
         if self.cursor <= 0 {
             return false;
