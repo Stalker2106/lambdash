@@ -4,10 +4,8 @@ use std::process::Stdio;
 use std::process::Command;
 use std::collections::VecDeque;
 
-use crate::core::ShellError;
-use crate::core::ShellState;
-use crate::tokenizer::{tokenize, parse_variable};
-use crate::tokenizer::Token;
+use crate::core::{ShellError, ShellState};
+use crate::tokenizer::{Token, tokenize};
 use crate::builtins::match_builtin;
 
 #[derive(Debug)]
@@ -27,25 +25,6 @@ pub fn expand_variable(state: &mut ShellState, var: &str) -> Option<String> {
         "?" => Some(state.status.to_string()),
         _ => env::var(var).ok(),
     }
-}
-
-pub fn expand_expr(state: &mut ShellState, expr: &String) -> String {
-    let mut chars = expr.chars().peekable();
-    let mut expanded_expr = String::new();
-    
-    while let Some(c) = chars.next() {
-        match c {
-            '$' => {
-                let varname = parse_variable(&mut chars);
-                match expand_variable(state, &varname) {
-                    Some(value) => expanded_expr.push_str(&value),
-                    None => expanded_expr.push_str(&varname)
-                }
-            }
-            _ => expanded_expr.push(c)
-        }
-    }
-    return expanded_expr;
 }
 
 pub fn expand_tokens(state: &mut ShellState, tokens: &mut Vec<Token>) {
@@ -112,7 +91,7 @@ pub fn eval_tokens(state: &mut ShellState, tokens: &Vec<Token>) -> Result<Option
     Ok(status)
 }
 
-pub fn eval(state: &mut ShellState, expr: &String) -> Result<Option<u8>, ShellError> {
+pub fn eval_expr(state: &mut ShellState, expr: &String) -> Result<Option<u8>, ShellError> {
     match tokenize(expr) {
         Ok(mut tokens) => {
             if tokens.len() > 0 {

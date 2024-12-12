@@ -1,7 +1,6 @@
-use crate::{core::ShellState, eval::expand_expr};
+use crate::{core::ShellState, promptscript::print_expr};
 
 pub struct Prompt {
-    ps1: String,
     input_stash: Option<String>,
     input: String,
     cursor: usize,
@@ -12,15 +11,15 @@ impl Prompt {
         return Prompt{
             input_stash: None,
             input: String::new(),
-            ps1: "λsh $PWD ($?) >".to_string(),
             cursor: 0
         }
     }
 
     // ps1
 
-    pub fn get_ps1(&self, state: &mut ShellState) -> String {
-        return expand_expr(state, &self.ps1);
+    pub fn print_ps1(&self, state: &mut ShellState) {
+        let ps1 = state.config.prompt.ps1.clone();
+        print_expr(state, &ps1);
     }
 
     // input

@@ -1,6 +1,7 @@
 use std::io::{stdout, stderr};
 extern crate crossterm;
 
+use std::collections::VecDeque;
 use crossterm::{
     cursor,
     event::{
@@ -17,16 +18,19 @@ use crossterm::{
 };
 
 mod core;
+mod config;
 mod tokenizer;
 mod eval;
 mod builtins;
 mod prompt;
+mod promptscript;
+mod voutput;
 mod history;
 
 use core::{ShellError, ShellState};
 use prompt::Prompt;
 use history::History;
-use eval::eval;
+use eval::{eval_expr, execute};
 
 fn clear_prompt_input(state: &mut ShellState, prompt: &Prompt) {
     let p_cursor = prompt.get_cursor();
@@ -35,8 +39,6 @@ fn clear_prompt_input(state: &mut ShellState, prompt: &Prompt) {
     }
     state.stdout.queue(Clear(ClearType::UntilNewLine)).unwrap();
 }
-
-use crossterm::tty::IsTty;
 
 fn main() {
     let mut stdout = stdout();
@@ -47,8 +49,7 @@ fn main() {
     // main loop
     while state.running {
         let mut reading: bool = true;
-        let ps1buf = prompt.get_ps1(&mut state);
-        state.stdout.queue(Print(ps1buf)).unwrap();
+        prompt.print_ps1(&mut state);
         state.stdout.flush().unwrap();
         let mut history_idx: Option<usize> = None;
         // read loop
@@ -69,6 +70,17 @@ fn main() {
                                         },
                                         'd' => {
                                             state.stdout.queue(Print("^D")).unwrap();
+                                        }
+                                        'l' => {
+                                            execute(&mut state, "clear", &VecDeque::new()).unwrap();
+                                            prompt.print_ps1(&mut state);
+                                            let input = &prompt.get_input();
+                                            state.stdout.queue(Print(input)).unwrap();
+                                            let diff = input.len() - prompt.get_cursor();
+                                            if diff > 0 {
+                                                state.stdout.queue(cursor::MoveLeft((diff) as u16)).unwrap();
+                                            }
+                                            state.stdout.flush().unwrap();
                                         }
                                         _ => ()
                                     }
@@ -165,7 +177,7 @@ fn main() {
         if prompt.has_input() {
             let input: &String = prompt.get_input();
             history.submit(input);
-            match eval(&mut state, input) {
+            match eval_expr(&mut state, input) {
                 Ok(s) => {
                     if let Some(res) = s {
                         state.status = res;
@@ -176,14 +188,16 @@ fn main() {
                         ShellError::Execution(error) => {
                             state.status = error.status;
                             state.stdout.queue(SetForegroundColor(Color::Red)).unwrap()
-                                        .queue(Print(format!("Error: {}\n", error.details))).unwrap()
-                                        .queue(ResetColor).unwrap();
+                                        .queue(Print(format!("error: {}", error.details))).unwrap()
+                                        .queue(ResetColor).unwrap()
+                                        .queue(Print("\n")).unwrap();
                         },
                         ShellError::Tokenization(error) => {
                             state.status = error.status;
                             state.stdout.queue(SetForegroundColor(Color::Red)).unwrap()
-                                        .queue(Print(format!("Error: {}\n", error.details))).unwrap()
-                                        .queue(ResetColor).unwrap();
+                                        .queue(Print(format!("syntax error: {}", error.details))).unwrap()
+                                        .queue(ResetColor).unwrap()
+                                        .queue(Print("\n")).unwrap();
                         }
                     };
                     state.stdout.queue(cursor::MoveToNextLine(1)).unwrap();

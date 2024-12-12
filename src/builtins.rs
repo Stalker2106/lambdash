@@ -25,7 +25,11 @@ fn cmd_exit(state: &mut ShellState) -> u8 {
 }
 
 fn cmd_cd(args: &VecDeque<&str>) -> u8 {
-    env::set_current_dir(args[0]).unwrap();
+    match args.len() {
+        0 => env::set_current_dir(env::var("HOME").unwrap()).unwrap(),
+        1 => env::set_current_dir(args[0]).unwrap(),
+        _
+    }
     env::set_var("PWD", env::current_dir().unwrap());
     return 0;
 }

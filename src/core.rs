@@ -1,6 +1,9 @@
-use std::io::{Write};
-use crate::{eval::ExecutionError, tokenizer::TokenizationError};
+use std::io::Write;
+use crate::config::{ShellConfig, load};
+use crate::eval::ExecutionError;
+use crate::tokenizer::TokenizationError;
 
+#[derive(Debug)]
 pub enum ShellError {
     Tokenization(TokenizationError),
     Execution(ExecutionError)
@@ -21,6 +24,7 @@ impl From<TokenizationError> for ShellError {
 pub struct ShellState<'a> {
     pub status: u8,
     pub running: bool,
+    pub config: ShellConfig,
     pub stdout: &'a mut dyn Write,
     pub stderr: &'a mut dyn Write
 }
@@ -30,6 +34,7 @@ impl<'a> ShellState<'a> {
         ShellState {
             status: 0,
             running: true,
+            config: load(),
             stdout: out,
             stderr: err,
         }
