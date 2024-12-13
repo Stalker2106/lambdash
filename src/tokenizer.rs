@@ -44,7 +44,6 @@ pub fn parse_variable(iter: &mut Peekable<std::str::Chars>) -> String {
 pub fn tokenize(input: &String) -> Result<Vec<Token>, TokenizationError> {
     let mut tokens = Vec::new();
     let mut chars = input.chars().peekable();
-    
     while let Some(c) = chars.next() {
         match c {
             '|' => {
