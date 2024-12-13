@@ -1,4 +1,5 @@
 use std::io::{stdout, stderr};
+use std::env;
 extern crate crossterm;
 
 use crossterm::{
@@ -9,6 +10,7 @@ use crossterm::{
         KeyCode, KeyModifiers
     },
     style::{Color, Print, ResetColor, SetForegroundColor},
+    terminal,
     terminal::{
         Clear,
         ClearType
@@ -39,7 +41,15 @@ fn clear_prompt_input(state: &mut ShellState, prompt: &Prompt) {
     state.stdout.queue(Clear(ClearType::UntilNewLine)).unwrap();
 }
 
+pub fn update_size(width: u16, height: u16) {
+    env::set_var("COLUMNS", width.to_string());
+    env::set_var("LINES", height.to_string());
+}
+
 fn main() {
+    if let Ok((width, height)) = terminal::size() {
+        update_size(width, height);
+    }
     let mut stdout = stdout();
     let mut stderr = stderr();
     let mut state: ShellState = ShellState::new(&mut stdout, &mut stderr);
@@ -50,17 +60,20 @@ fn main() {
         prompt.print_ps1(&mut state);
         state.stdout.flush().unwrap();
         let mut history_idx: Option<usize> = None;
+        let mut chars_read = -1;
         // read loop
         crossterm::terminal::enable_raw_mode().unwrap();
         loop {
             if let Ok(e) = read() {
                 match e {
+                    Event::Resize(width, height) => update_size(width, height),
                     Event::Key(event) => {
                         if event.modifiers.contains(KeyModifiers::CONTROL) {
                             match event.code {
                                 KeyCode::Char(c) => {
                                     match c {
                                         'c' => {
+                                            chars_read = 0;
                                             prompt.clear_input();
                                             state.stdout.queue(Print("^C\n")).unwrap()
                                                         .queue(cursor::MoveToNextLine(1)).unwrap();
@@ -92,6 +105,7 @@ fn main() {
                             match event.code {
                                 KeyCode::Char(c) => {
                                     prompt.add_char(c);
+                                    chars_read += 1;
                                     let p_cursor = prompt.get_cursor();
                                     state.stdout.queue(Print(c)).unwrap();
                                     // if we are inserting, we need to print rest of buffer to preserve it
@@ -161,7 +175,7 @@ fn main() {
                                     }
                                 },
                                 KeyCode::Enter => {
-                                    prompt.append_char('\n');
+                                    chars_read = 0;
                                     state.stdout.queue(Print("\n")).unwrap()
                                                 .queue(cursor::MoveToNextLine(1)).unwrap();
                                     break;
@@ -217,7 +231,8 @@ fn main() {
                 }
             }
             prompt.clear_input();
-        } else {
+        }
+        if chars_read == -1 {
             state.stdout.queue(Print("exit\n")).unwrap();
             break;
         }

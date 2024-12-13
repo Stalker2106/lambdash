@@ -1,5 +1,4 @@
 use std::env;
-use std::collections::VecDeque;
 use std::process::ExitStatus;
 use std::os::unix::process::ExitStatusExt;
 
@@ -7,12 +6,12 @@ use crate::cmdoutput::CmdOutput;
 use crate::core::ShellError;
 use crate::eval::{execute, ExecutionError};
 
-pub fn match_builtin(command: &str, args: &VecDeque<&str>) -> Result<Option<CmdOutput>, ShellError> {
+pub fn match_builtin(command: &str, args: &Vec<&str>, input: &Option<CmdOutput>) -> Result<Option<CmdOutput>, ShellError> {
     match command {
         "exit" => cmd_exit(),
         "cd" => cmd_cd(&args),
         "pwd" => cmd_pwd(),
-        "export" => cmd_export(args),
+        "export" => cmd_export(args, input),
         _ => Ok(None)
     }
 }
@@ -21,7 +20,7 @@ fn cmd_exit() -> Result<Option<CmdOutput>, ShellError> {
     return Err(ShellError::ExitRequest());
 }
 
-fn cmd_cd(args: &VecDeque<&str>) -> Result<Option<CmdOutput>, ShellError> {
+fn cmd_cd(args: &Vec<&str>) -> Result<Option<CmdOutput>, ShellError> {
     match args.len() {
         0 => {
             env::set_var("OLDPWD", env::current_dir().unwrap());
@@ -53,9 +52,9 @@ fn cmd_pwd() -> Result<Option<CmdOutput>, ShellError> {
     return Ok(Some(output));
 }
 
-fn cmd_export(args: &VecDeque<&str>) -> Result<Option<CmdOutput>, ShellError> {
+fn cmd_export(args: &Vec<&str>, input: &Option<CmdOutput>) -> Result<Option<CmdOutput>, ShellError> {
     if args.len() <= 0 {
-        return execute("env", &VecDeque::new());
+        return execute("env", &Vec::new(), input);
     }
     for arg in args {
         let kv = arg.split('=').collect::<Vec<&str>>();
