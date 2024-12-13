@@ -1,6 +1,4 @@
 use std::iter::Peekable;
-use std::process::ExitStatus;
-use std::os::unix::process::ExitStatusExt;
 
 pub enum Token {
     Word(String),
@@ -15,24 +13,9 @@ pub enum Token {
 
 const RESERVED_CHARS: &str = "\"';|&$<>";
 
-enum TokenizationErrorType {
-    InvalidSyntax = 123,
-    UnmatchedCharacter = 127
-}
-
-#[derive(Debug)]
-pub struct TokenizationError {
-    pub details: String,
-    pub status: ExitStatus,
-}
-
-impl TokenizationError {
-    fn new(code: TokenizationErrorType, msg: String) -> TokenizationError {
-        TokenizationError{
-            status: ExitStatus::from_raw(code as i32),
-            details: msg.to_string()
-        }
-    }
+#[derive(Debug, PartialEq)]
+pub enum TokenizationError {
+    UnmatchedCharacter
 }
 
 pub fn parse_variable(iter: &mut Peekable<std::str::Chars>, index: &mut i32) -> String {
@@ -48,7 +31,7 @@ pub fn parse_variable(iter: &mut Peekable<std::str::Chars>, index: &mut i32) -> 
     return var;
 }
 
-fn parse_until_next(iter: &mut Peekable<std::str::Chars>, index: &mut i32, closing_char: char) -> Result<String, TokenizationErrorType> {
+fn parse_until_next(iter: &mut Peekable<std::str::Chars>, index: &mut i32, closing_char: char) -> Result<String, TokenizationError> {
     let mut closed = false;
     let mut content = String::new();
     while let Some(&next) = iter.peek() {
@@ -61,7 +44,7 @@ fn parse_until_next(iter: &mut Peekable<std::str::Chars>, index: &mut i32, closi
         content.push(iter.next().unwrap());
     }
     if !closed {
-        return Err(TokenizationErrorType::UnmatchedCharacter);
+        return Err(TokenizationError::UnmatchedCharacter);
     }
     return Ok(content);
 }
@@ -113,8 +96,16 @@ pub fn tokenize(expr: &String) -> Result<Vec<Token>, TokenizationError> {
                 tokens.push(Token::Variable(parse_variable(&mut chars, &mut index)));
             },
             '\'' | '"' => match parse_until_next(&mut chars, &mut index, c) {
-                Ok(content) => tokens.push(Token::Word(content)),
-                Err(error_type) => return Err(TokenizationError::new(error_type, format!("unterminated quote {} opened at position {}", c, index)))
+                Ok(content) => {
+                    if let Some(last) = tokens.last_mut() {
+                        if let Token::Word(ref mut last_word) = last {
+                            last_word.push_str(&content);
+                        }
+                    } else {
+                        tokens.push(Token::Word(content))
+                    }
+                },
+                Err(error) => return Err(error)
             },
             '`' | '(' => match parse_until_next(&mut chars, &mut index, if c == '(' { ')' } else { c }) {
                 Ok(content) => {
@@ -123,7 +114,7 @@ pub fn tokenize(expr: &String) -> Result<Vec<Token>, TokenizationError> {
                         Err(error) => return Err(error)
                     }
                 },
-                Err(error_type) => return Err(TokenizationError::new(error_type, format!("unmatched character {} at position {}", c, index)))
+                Err(error) => return Err(error)
             },
             ';' => tokens.push(Token::CommandSeparator),
             c if c.is_whitespace() => continue, 

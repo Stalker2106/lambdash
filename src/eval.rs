@@ -51,9 +51,9 @@ pub fn expand_tokens(state: &mut ShellState, tokens: &mut Vec<Token>) {
     }
 }
 
-pub fn run_command(command: &Vec<&str>, input: &Option<CmdOutput>) -> Result<Option<CmdOutput>, ShellError> {
+pub fn run_command(state: &mut ShellState, command: &Vec<&str>, input: &Option<CmdOutput>) -> Result<Option<CmdOutput>, ShellError> {
     let args = command.iter().skip(1).copied().collect::<Vec<&str>>();
-    match match_builtin(&command[0], &args, &input) {
+    match match_builtin(state, &command[0], &args, &input) {
         Ok(builtin_out) => {
             if builtin_out.is_some() {
                 return Ok(builtin_out);
@@ -68,7 +68,7 @@ pub fn run_command(command: &Vec<&str>, input: &Option<CmdOutput>) -> Result<Opt
     }
 }
 
-pub fn eval_tokens(tokens: &Vec<Token>) -> Result<Option<CmdOutput>, ShellError> {
+pub fn eval_tokens(state: &mut ShellState, tokens: &Vec<Token>) -> Result<Option<CmdOutput>, ShellError> {
     let mut command: Vec<&str> = Vec::new();
     let mut action: Option<&Token> = None;
     let mut output: Option<CmdOutput> = None;
@@ -78,7 +78,7 @@ pub fn eval_tokens(tokens: &Vec<Token>) -> Result<Option<CmdOutput>, ShellError>
             Token::Word(w) => {
                 command.push(w.as_str());
                 if !matches!(token_it.peek(), Some(Token::Word(_))) {
-                    match run_command(&command, &output) {
+                    match run_command(state, &command, &output) {
                         Ok(res) => output = res,
                         Err(err) => return Err(err)
                     }
@@ -109,7 +109,7 @@ pub fn eval_expr(state: &mut ShellState, expr: &String) -> Result<Option<CmdOutp
         Ok(mut tokens) => {
             if tokens.len() > 0 {
                 expand_tokens(state, &mut tokens);
-                return eval_tokens(&tokens)
+                return eval_tokens(state, &tokens)
             }
             return Ok(None)
         },

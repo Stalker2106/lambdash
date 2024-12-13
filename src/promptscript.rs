@@ -1,6 +1,12 @@
+
+use std::process::ExitStatus;
+use std::os::unix::process::ExitStatusExt;
+use std::io::Cursor;
+
 use crossterm::style::{Color, Print, ResetColor, SetForegroundColor};
 use crossterm::QueueableCommand;
 
+use crate::cmdoutput::CmdOutput;
 use crate::core::ShellState;
 use crate::eval::expand_variable;
 use crate::eval::eval_expr;
@@ -13,7 +19,7 @@ enum Token {
     Variable(String)
 }
 
-fn tokenize(input: &str) -> Vec<Token> {
+fn tokenize_ps(input: &str) -> Vec<Token> {
     let mut tokens = Vec::new();
     let mut chars = input.chars().peekable();
     let mut index = 0;
@@ -75,24 +81,26 @@ fn parse_color(color: &str) -> Color {
     }
 }
 
-fn print_tokens(state: &mut ShellState, tokens: &[Token]) {
+fn render_ps_tokens(state: &mut ShellState, tokens: &[Token]) -> CmdOutput {
+    let mut output = Vec::new();
+    let mut cursor = Cursor::new(&mut output);
     for token in tokens {
         match token {
             Token::Text(text) => {
-                state.stdout.queue(Print(text)).unwrap();
+                cursor.queue(Print(text)).unwrap();
             },
             Token::Variable(var_name) => {
                 if let Some(value) = expand_variable(state, var_name) {
-                    state.stdout.queue(Print(format!("{}", value))).unwrap();
+                    cursor.queue(Print(value)).unwrap();
                 } else {
-                    state.stdout.queue(Print(format!("${}", var_name))).unwrap();
+                    cursor.queue(Print(format!("${}", var_name))).unwrap();
                 }
             }
             Token::Tag { name, value } => {
                 match name.as_str() {
                     "color" => {
                         if let Some(v) = value {
-                            state.stdout.queue(SetForegroundColor(parse_color(v))).unwrap();
+                            cursor.queue(SetForegroundColor(parse_color(v))).unwrap();
                         }
                     },
                     "cmd" => {
@@ -106,15 +114,16 @@ fn print_tokens(state: &mut ShellState, tokens: &[Token]) {
             Token::EndTag(tag_name) => {
                 match tag_name.as_str() {
                     "color" => {
-                        state.stdout.queue(ResetColor).unwrap();
+                        cursor.queue(ResetColor).unwrap();
                     },
                     _ => ()
                 }
             }
         }
     }
+    return CmdOutput{status: ExitStatus::from_raw(0), stdout: Some(output), stderr: None};
 }
 
-pub fn print_expr(state: &mut ShellState, expr: &str) {
-    print_tokens(state, &tokenize(expr))
+pub fn eval_ps(state: &mut ShellState, expr: &str) -> CmdOutput {
+    return render_ps_tokens(state, &tokenize_ps(expr))
 }

@@ -1,15 +1,20 @@
 use std::env;
+use std::io::Cursor;
 use std::process::ExitStatus;
 use std::os::unix::process::ExitStatusExt;
 
+use crossterm::style::Print;
+use crossterm::QueueableCommand;
+
 use crate::cmdoutput::CmdOutput;
-use crate::core::ShellError;
+use crate::core::{ShellState, ShellError};
 use crate::eval::{execute, ExecutionError};
 
-pub fn match_builtin(command: &str, args: &Vec<&str>, input: &Option<CmdOutput>) -> Result<Option<CmdOutput>, ShellError> {
+pub fn match_builtin(state: &mut ShellState, command: &str, args: &Vec<&str>, input: &Option<CmdOutput>) -> Result<Option<CmdOutput>, ShellError> {
     match command {
         "exit" => cmd_exit(),
-        "cd" => cmd_cd(&args),
+        "alias" => cmd_alias(state, args),
+        "cd" => cmd_cd(args),
         "pwd" => cmd_pwd(),
         "export" => cmd_export(args, input),
         _ => Ok(None)
@@ -18,6 +23,28 @@ pub fn match_builtin(command: &str, args: &Vec<&str>, input: &Option<CmdOutput>)
 
 fn cmd_exit() -> Result<Option<CmdOutput>, ShellError> {
     return Err(ShellError::ExitRequest());
+}
+
+fn cmd_alias(state: &mut ShellState, args: &Vec<&str>) -> Result<Option<CmdOutput>, ShellError> {
+    let mut output = Vec::new();
+    let mut cursor = Cursor::new(&mut output);
+    match args.len() {
+        0 => {
+            for (name, command) in state.aliases.iter() {
+                cursor.queue(Print(format!("alias {} {}\n", name, command))).unwrap();
+            }
+        },
+        _ => {
+            let combined_args = args.join(" ");
+            if let Some(index) = combined_args.rfind('=') {
+                let (alias, cmd) = combined_args.split_at(index);
+                state.aliases.insert(alias.replace('=', " ").to_string(), cmd.to_string());
+            } else {
+                return Err(ShellError::Execution(ExecutionError::new(1, "alias: body cannot be empty".to_string())));
+            }
+        }
+    }
+    return Ok(Some(CmdOutput{status: ExitStatus::from_raw(0), stdout: Some(output), stderr: None }))
 }
 
 fn cmd_cd(args: &Vec<&str>) -> Result<Option<CmdOutput>, ShellError> {

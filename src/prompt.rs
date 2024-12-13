@@ -1,5 +1,3 @@
-use crate::{core::ShellState, promptscript::print_expr};
-
 pub struct Prompt {
     input_stash: Option<String>,
     input: String,
@@ -13,13 +11,6 @@ impl Prompt {
             input: String::new(),
             cursor: 0
         }
-    }
-
-    // ps1
-
-    pub fn print_ps1(&self, state: &mut ShellState) {
-        let ps1 = state.config.prompt.ps1.clone();
-        print_expr(state, &ps1);
     }
 
     // input
