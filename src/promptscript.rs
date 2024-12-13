@@ -16,13 +16,14 @@ enum Token {
 fn tokenize(input: &str) -> Vec<Token> {
     let mut tokens = Vec::new();
     let mut chars = input.chars().peekable();
-
+    let mut index = 0;
     while let Some(c) = chars.next() {
         match c {
             '[' => {
                 // Check for a possible closing tag '/'
                 if chars.peek() == Some(&'/') {
                     chars.next(); // Consume '/'
+                    index += 1;
                     let tag_name: String = chars.by_ref().take_while(|&c| c != ']').collect();
                     tokens.push(Token::EndTag(tag_name));
                 } else {
@@ -38,7 +39,7 @@ fn tokenize(input: &str) -> Vec<Token> {
                 }
             }
             '$' => {
-                let var_name: String = parse_variable(&mut chars);
+                let var_name: String = parse_variable(&mut chars, &mut index);
                 tokens.push(Token::Variable(var_name));
             }
             _ => {
@@ -49,6 +50,7 @@ fn tokenize(input: &str) -> Vec<Token> {
                         break;
                     }
                     text.push(chars.next().unwrap());
+                    index += 1;
                 }
                 tokens.push(Token::Text(text));
             }

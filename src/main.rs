@@ -57,7 +57,9 @@ fn main() {
     let mut history = History::new();
     // main loop
     loop {
+        prompt.unstash_input();
         prompt.print_ps1(&mut state);
+        state.stdout.queue(Print(prompt.get_input())).unwrap();
         state.stdout.flush().unwrap();
         let mut history_idx: Option<usize> = None;
         let mut chars_read = -1;
@@ -87,14 +89,10 @@ fn main() {
                                         'l' => {
                                             state.stdout.queue(Clear(ClearType::All)).unwrap()
                                                         .queue(cursor::MoveTo(0,0)).unwrap();
-                                            prompt.print_ps1(&mut state);
-                                            let input = &prompt.get_input();
-                                            state.stdout.queue(Print(input)).unwrap();
-                                            let diff = input.len() - prompt.get_cursor();
-                                            if diff > 0 {
-                                                state.stdout.queue(cursor::MoveLeft((diff) as u16)).unwrap();
-                                            }
-                                            state.stdout.flush().unwrap();
+                                            chars_read = 0;
+                                            prompt.stash_input();
+                                            prompt.clear_input();
+                                            break;
                                         }
                                         _ => ()
                                     }
@@ -231,6 +229,7 @@ fn main() {
                 }
             }
             prompt.clear_input();
+            prompt.clear_stash();
         }
         if chars_read == -1 {
             state.stdout.queue(Print("exit\n")).unwrap();

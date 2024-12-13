@@ -10,10 +10,15 @@ pub enum Token {
     Redirection(String), // >, <, >>, <<
     Variable(String), // $VAR or ${VAR}
     Operator(String), // && or ||
-    EndOfInput,   // End of input
+    CommandSeparator,   //;
 }
 
 const RESERVED_CHARS: &str = "\"';|&$<>";
+
+enum TokenizationErrorType {
+    InvalidSyntax = 123,
+    UnmatchedCharacter = 127
+}
 
 #[derive(Debug)]
 pub struct TokenizationError {
@@ -22,19 +27,20 @@ pub struct TokenizationError {
 }
 
 impl TokenizationError {
-    fn new(code: i32, msg: String) -> TokenizationError {
+    fn new(code: TokenizationErrorType, msg: String) -> TokenizationError {
         TokenizationError{
-            status: ExitStatus::from_raw(code),
+            status: ExitStatus::from_raw(code as i32),
             details: msg.to_string()
         }
     }
 }
 
-pub fn parse_variable(iter: &mut Peekable<std::str::Chars>) -> String {
+pub fn parse_variable(iter: &mut Peekable<std::str::Chars>, index: &mut i32) -> String {
     let mut var = String::new();
     while let Some(&next) = iter.peek() {
         if next.is_alphanumeric() || next == '_' || (var.len() == 0 && next == '?') {
             var.push(iter.next().unwrap());
+            *index += 1;
         } else {
             break;
         }
@@ -42,14 +48,35 @@ pub fn parse_variable(iter: &mut Peekable<std::str::Chars>) -> String {
     return var;
 }
 
+fn parse_until_next(iter: &mut Peekable<std::str::Chars>, index: &mut i32, closing_char: char) -> Result<String, TokenizationErrorType> {
+    let mut closed = false;
+    let mut content = String::new();
+    while let Some(&next) = iter.peek() {
+        if next == closing_char {
+            closed = true;
+            iter.next();
+            *index += 1;
+            break;
+        }
+        content.push(iter.next().unwrap());
+    }
+    if !closed {
+        return Err(TokenizationErrorType::UnmatchedCharacter);
+    }
+    return Ok(content);
+}
+
 pub fn tokenize(expr: &String) -> Result<Vec<Token>, TokenizationError> {
     let mut tokens = Vec::new();
     let mut chars = expr.chars().peekable();
+    let mut index = 0;
     while let Some(c) = chars.next() {
+        index += 1;
         match c {
             '|' => {
                 if chars.peek() == Some(&'&') {
                     chars.next();
+                    index += 1;
                     tokens.push(Token::Operator("||".to_string()));
                 } else {
                     tokens.push(Token::Pipe);
@@ -58,6 +85,7 @@ pub fn tokenize(expr: &String) -> Result<Vec<Token>, TokenizationError> {
             '&' => {
                 if chars.peek() == Some(&'&') {
                     chars.next();
+                    index += 1;
                     tokens.push(Token::Operator("&&".to_string()));
                 } else {
                     tokens.push(Token::Background);
@@ -66,6 +94,7 @@ pub fn tokenize(expr: &String) -> Result<Vec<Token>, TokenizationError> {
             '>' => {
                 if chars.peek() == Some(&'>') {
                     chars.next();
+                    index += 1;
                     tokens.push(Token::Redirection(">>".to_string()));
                 } else {
                     tokens.push(Token::Redirection(">".to_string()));
@@ -74,52 +103,29 @@ pub fn tokenize(expr: &String) -> Result<Vec<Token>, TokenizationError> {
             '<' => {
                 if chars.peek() == Some(&'>') {
                     chars.next();
+                    index += 1;
                     tokens.push(Token::Redirection("<<".to_string()));
                 } else {
                     tokens.push(Token::Redirection("<".to_string()));
                 }
             },
             '$' => {
-                tokens.push(Token::Variable(parse_variable(&mut chars)));
+                tokens.push(Token::Variable(parse_variable(&mut chars, &mut index)));
             },
-            '\'' | '"' => {
-                let mut closed = false;
-                let quote = c;
-                let mut word = String::new();
-                while let Some(&next) = chars.peek() {
-                    if next == '\'' || next ==  '"' {
-                        closed = true;
-                        chars.next();
-                        break;
-                    }
-                    word.push(chars.next().unwrap());
-                }
-                if !closed {
-                    return Err(TokenizationError::new(127, format!("Unterminated quote {} found.", quote)));
-                }
-                tokens.push(Token::Word(word));
+            '\'' | '"' => match parse_until_next(&mut chars, &mut index, c) {
+                Ok(content) => tokens.push(Token::Word(content)),
+                Err(error_type) => return Err(TokenizationError::new(error_type, format!("unterminated quote {} opened at position {}", c, index)))
             },
-            '`' | '(' => {
-                let mut closed = false;
-                let opening = c;
-                let mut subexpr = String::new();
-                while let Some(&next) = chars.peek() {
-                    if next == '\'' || next ==  '"' {
-                        closed = true;
-                        chars.next();
-                        break;
+            '`' | '(' => match parse_until_next(&mut chars, &mut index, if c == '(' { ')' } else { c }) {
+                Ok(content) => {
+                    match tokenize(&content) {
+                        Ok(subtokens) => tokens.push(Token::Subcommand(subtokens)),
+                        Err(error) => return Err(error)
                     }
-                    subexpr.push(chars.next().unwrap());
-                }
-                if !closed {
-                    return Err(TokenizationError::new(127, format!("Unterminated subcommand {} found.", opening)));
-                }
-                match tokenize(subexpr) {
-                    Ok(subtokens) => tokens.push(Token::Subcommand(subtokens)),
-                    Err(error) => return Err(error)
-                }
-            }
-            ';' => tokens.push(Token::EndOfInput),
+                },
+                Err(error_type) => return Err(TokenizationError::new(error_type, format!("unmatched character {} at position {}", c, index)))
+            },
+            ';' => tokens.push(Token::CommandSeparator),
             c if c.is_whitespace() => continue, 
             _ => {
                 let mut word = c.to_string();
@@ -128,13 +134,11 @@ pub fn tokenize(expr: &String) -> Result<Vec<Token>, TokenizationError> {
                         break;
                     }
                     word.push(chars.next().unwrap());
+                    index += 1;
                 }
                 tokens.push(Token::Word(word));
             }
         }
-    }
-    if let Some(_) = tokens.last() {
-        tokens.push(Token::EndOfInput);
     }
     Ok(tokens)
 }

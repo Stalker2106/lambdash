@@ -67,8 +67,14 @@ impl Prompt {
     }
 
     pub fn unstash_input(&mut self) {
-        if self.input_stash.is_some() {
-            self.set_input(&self.input_stash.clone().unwrap());
+        if let Some(stash) = &self.input_stash {
+            self.set_input(&stash.clone());
+        }
+    }
+
+    pub fn clear_stash(&mut self) {
+        if let Some(stash) = &mut self.input_stash {
+            stash.clear();
         }
     }
 
