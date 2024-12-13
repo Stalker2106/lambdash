@@ -6,6 +6,7 @@ pub enum Token {
     Word(String),
     Pipe,         // |
     Background,   // &
+    Subcommand(Vec<Token>), //() or ``
     Redirection(String), // >, <, >>, <<
     Variable(String), // $VAR or ${VAR}
     Operator(String), // && or ||
@@ -41,9 +42,9 @@ pub fn parse_variable(iter: &mut Peekable<std::str::Chars>) -> String {
     return var;
 }
 
-pub fn tokenize(input: &String) -> Result<Vec<Token>, TokenizationError> {
+pub fn tokenize(expr: &String) -> Result<Vec<Token>, TokenizationError> {
     let mut tokens = Vec::new();
-    let mut chars = input.chars().peekable();
+    let mut chars = expr.chars().peekable();
     while let Some(c) = chars.next() {
         match c {
             '|' => {
@@ -98,6 +99,26 @@ pub fn tokenize(input: &String) -> Result<Vec<Token>, TokenizationError> {
                 }
                 tokens.push(Token::Word(word));
             },
+            '`' | '(' => {
+                let mut closed = false;
+                let opening = c;
+                let mut subexpr = String::new();
+                while let Some(&next) = chars.peek() {
+                    if next == '\'' || next ==  '"' {
+                        closed = true;
+                        chars.next();
+                        break;
+                    }
+                    subexpr.push(chars.next().unwrap());
+                }
+                if !closed {
+                    return Err(TokenizationError::new(127, format!("Unterminated subcommand {} found.", opening)));
+                }
+                match tokenize(subexpr) {
+                    Ok(subtokens) => tokens.push(Token::Subcommand(subtokens)),
+                    Err(error) => return Err(error)
+                }
+            }
             ';' => tokens.push(Token::EndOfInput),
             c if c.is_whitespace() => continue, 
             _ => {
