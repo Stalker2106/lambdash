@@ -1,13 +1,28 @@
 use std::iter::Peekable;
 
+#[derive(Debug, PartialEq)]
+pub enum RedirectionType {
+    Left,
+    AppendLeft,
+    Right,
+    AppendRight
+}
+
+#[derive(Debug, PartialEq)]
+pub enum ConditionType {
+    And,
+    Or,
+}
+
 pub enum Token {
     Word(String),
     Pipe,         // |
     Background,   // &
-    Subcommand(Vec<Token>), //() or ``
-    Redirection(String), // >, <, >>, <<
+    Negate,       // !
+    Subexpression(Vec<Token>), //() or ``
+    Redirection(RedirectionType), // >, <, >>, <<
     Variable(String), // $VAR or ${VAR}
-    Operator(String), // && or ||
+    Operator(ConditionType), // && or ||
     CommandSeparator,   //;
 }
 
@@ -60,16 +75,17 @@ pub fn tokenize(expr: &String) -> Result<Vec<Token>, TokenizationError> {
                 if chars.peek() == Some(&'&') {
                     chars.next();
                     index += 1;
-                    tokens.push(Token::Operator("||".to_string()));
+                    tokens.push(Token::Operator(ConditionType::Or));
                 } else {
                     tokens.push(Token::Pipe);
                 }
             },
+            '!' => tokens.push(Token::Negate),
             '&' => {
                 if chars.peek() == Some(&'&') {
                     chars.next();
                     index += 1;
-                    tokens.push(Token::Operator("&&".to_string()));
+                    tokens.push(Token::Operator(ConditionType::And));
                 } else {
                     tokens.push(Token::Background);
                 }
@@ -78,18 +94,18 @@ pub fn tokenize(expr: &String) -> Result<Vec<Token>, TokenizationError> {
                 if chars.peek() == Some(&'>') {
                     chars.next();
                     index += 1;
-                    tokens.push(Token::Redirection(">>".to_string()));
+                    tokens.push(Token::Redirection(RedirectionType::AppendRight));
                 } else {
-                    tokens.push(Token::Redirection(">".to_string()));
+                    tokens.push(Token::Redirection(RedirectionType::Right));
                 }
             },
             '<' => {
-                if chars.peek() == Some(&'>') {
+                if chars.peek() == Some(&'<') {
                     chars.next();
                     index += 1;
-                    tokens.push(Token::Redirection("<<".to_string()));
+                    tokens.push(Token::Redirection(RedirectionType::AppendLeft));
                 } else {
-                    tokens.push(Token::Redirection("<".to_string()));
+                    tokens.push(Token::Redirection(RedirectionType::Left));
                 }
             },
             '$' => {
@@ -110,7 +126,7 @@ pub fn tokenize(expr: &String) -> Result<Vec<Token>, TokenizationError> {
             '`' | '(' => match parse_until_next(&mut chars, &mut index, if c == '(' { ')' } else { c }) {
                 Ok(content) => {
                     match tokenize(&content) {
-                        Ok(subtokens) => tokens.push(Token::Subcommand(subtokens)),
+                        Ok(subtokens) => tokens.push(Token::Subexpression(subtokens)),
                         Err(error) => return Err(error)
                     }
                 },

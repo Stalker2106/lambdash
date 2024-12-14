@@ -19,6 +19,7 @@ use crossterm::{
 };
 
 mod core;
+mod expressiontree;
 mod config;
 mod tokenizer;
 mod eval;

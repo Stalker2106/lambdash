@@ -5,6 +5,7 @@ use std::os::unix::process::ExitStatusExt;
 
 use crate::cmdoutput::CmdOutput;
 use crate::core::{ShellError, ShellState};
+use crate::expressiontree::build_tree;
 use crate::tokenizer::{Token, tokenize};
 use crate::builtins::match_builtin;
 
@@ -68,48 +69,15 @@ pub fn run_command(state: &mut ShellState, command: &Vec<&str>, input: &Option<C
     }
 }
 
-pub fn eval_tokens(state: &mut ShellState, tokens: &Vec<Token>) -> Result<Option<CmdOutput>, ShellError> {
-    let mut command: Vec<&str> = Vec::new();
-    let mut action: Option<&Token> = None;
-    let mut output: Option<CmdOutput> = None;
-    let mut token_it = tokens.iter().peekable();
-    while let Some(token) = token_it.next() {
-        match token {
-            Token::Word(w) => {
-                command.push(w.as_str());
-                if !matches!(token_it.peek(), Some(Token::Word(_))) {
-                    match run_command(state, &command, &output) {
-                        Ok(res) => output = res,
-                        Err(err) => return Err(err)
-                    }
-                    command.clear();
-                    action = None;
-                }
-            },
-            Token::Redirection(r) => {
-                if action.is_some() {
-                    return Err(ShellError::Execution(ExecutionError::new(123, format!("invalid redirection {}", r))));
-                }
-                action = Some(&token);
-            }
-            Token::Pipe => {
-                if action.is_some() {
-                    return Err(ShellError::Execution(ExecutionError::new(127, format!("invalid pipe"))));
-                }
-                action = Some(&token);
-            }
-            _ => continue
-        }
-    }
-    return Ok(output);
-}
-
 pub fn eval_expr(state: &mut ShellState, expr: &String) -> Result<Option<CmdOutput>, ShellError> {
     match tokenize(expr) {
         Ok(mut tokens) => {
             if tokens.len() > 0 {
                 expand_tokens(state, &mut tokens);
-                return eval_tokens(state, &tokens)
+                match build_tree(tokens) {
+                    Ok(tree) => (),
+                    Err(error) => return Err(ShellError::Execution(ExecutionError::new(1, format!("invalid syntax"))))
+                }
             }
             return Ok(None)
         },
