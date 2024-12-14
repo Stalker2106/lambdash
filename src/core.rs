@@ -28,6 +28,7 @@ impl From<TokenizationError> for ShellError {
 
 pub struct ShellState<'a> {
     pub status: ExitStatus,
+    pub ps1pos: (u16, u16),
     pub aliases: HashMap<String, String>,
     pub config: ShellConfig,
     pub stdout: &'a mut dyn Write,
@@ -38,6 +39,7 @@ impl<'a> ShellState<'a> {
     pub fn new(out: &'a mut dyn Write, err: &'a mut dyn Write) -> ShellState<'a> {
         ShellState {
             status: ExitStatus::from_raw(0),
+            ps1pos: (0,0),
             aliases: HashMap::new(),
             config: load(),
             stdout: out,

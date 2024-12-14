@@ -1,3 +1,5 @@
+use crossterm::cursor;
+
 pub struct Prompt {
     input_stash: Option<String>,
     input: String,
@@ -73,6 +75,23 @@ impl Prompt {
 
     pub fn get_cursor(&self) -> usize {
         return self.cursor;
+    }
+    pub fn get_cursor_offset(&self) -> (usize, usize) {
+        let sub_input = &self.input[..self.cursor];
+        let newline_count = sub_input.matches('\n').count();
+        if let Some(pos) = sub_input.rfind('\n') {
+            return (self.cursor - pos - 1, newline_count)
+        } else {
+            return (self.cursor, 0)
+        }
+    }
+
+    pub fn move_cursor(&mut self, pos: usize) -> bool {
+        if pos <= self.input.len() {
+            self.cursor = pos;
+            return true;
+        }
+        return false;
     }
 
     pub fn move_cursor_left(&mut self, amount: usize) -> Option<usize> {
