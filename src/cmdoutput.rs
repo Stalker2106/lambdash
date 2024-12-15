@@ -1,4 +1,5 @@
 use std::process::{Output, ExitStatus};
+use std::os::unix::process::ExitStatusExt;
 
 #[derive(Clone)]
 pub struct CmdOutput {
@@ -8,6 +9,13 @@ pub struct CmdOutput {
 }
 
 impl CmdOutput {
+    pub fn new() -> CmdOutput {
+        return CmdOutput{
+            status: ExitStatus::from_raw(0),
+            stdout: Some(Vec::new()),
+            stderr: None
+        }
+    }
     pub fn from_output(out: &Output) -> CmdOutput {
         return CmdOutput{
             status: out.status,

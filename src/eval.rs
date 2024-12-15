@@ -53,18 +53,21 @@ pub fn expand_tokens(state: &mut ShellState, tokens: &mut Vec<Token>) {
 
 // Execution
 
-pub fn run_command(state: &mut ShellState, command: &Vec<command::Command>, output: &mut CmdOutput) -> Result<CmdOutput, ShellError> {
+pub fn run_command(state: &mut ShellState, command: &Vec<command::Command>) -> Result<CmdOutput, ShellError> {
+    let mut output = CmdOutput::new();
     for step in command {
         let cmd = &step.words[0];
         let args = step.words[1..].to_vec();
-        match match_builtin(state, cmd, &args, output) {
-            Ok(out) => return Ok(out),
+        match match_builtin(state, cmd, &args) {
+            Ok(out) => {
+                output.combine(&out)
+            }
             Err(error) => {
                 match error {
                     ShellError::NoBuiltin => {
-                        match execute(cmd, &args, output) {
+                        match execute(cmd, &args) {
                             Ok(out) => {
-                                output.combine(&out)
+                                output.combine(&out);
                             },
                             Err(err) => return Err(err)
                         }
@@ -74,10 +77,10 @@ pub fn run_command(state: &mut ShellState, command: &Vec<command::Command>, outp
             }
         }
     }
-    Ok(output.clone())
+    Ok(output)
 }
 
-pub fn execute(command: &str, args: &Vec<String>, output: &CmdOutput) -> Result<CmdOutput, ShellError> {
+pub fn execute(command: &str, args: &Vec<String>) -> Result<CmdOutput, ShellError> {
     let mut process = process::Command::new(command);
     process.args(args)
         .stdout(Stdio::piped())
@@ -102,16 +105,14 @@ pub fn eval_expr(state: &mut ShellState, expr: &String) -> Result<Option<CmdOutp
                 expand_tokens(state, &mut tokens);
                 match parse_tokens(&tokens) {
                     Ok(commands) => {
-                        let mut output = CmdOutput::from_status(ExitStatus::from_raw(0));
+                        let mut output = CmdOutput::new();
                         for cmd in commands {
-                            match run_command(state, &cmd, &mut output) {
-                                Ok(out) => {
-                                    output.combine(&out);
-                                    return Ok(Some(output))
-                                },
+                            match run_command(state, &cmd) {
+                                Ok(out) => output.combine(&out),
                                 Err(error) => return Err(error)
                             }
                         }
+                        return Ok(Some(output));
                     },
                     Err(error) => return Err(ShellError::Execution(ExecutionError::new(1, format!("invalid syntax"))))
                 }

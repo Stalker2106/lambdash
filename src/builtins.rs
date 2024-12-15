@@ -10,13 +10,13 @@ use crate::cmdoutput::CmdOutput;
 use crate::core::{ShellState, ShellError};
 use crate::eval::{execute, ExecutionError};
 
-pub fn match_builtin(state: &mut ShellState, command: &str, args: &Vec<String>, output: &CmdOutput) -> Result<CmdOutput, ShellError> {
+pub fn match_builtin(state: &mut ShellState, command: &str, args: &Vec<String>) -> Result<CmdOutput, ShellError> {
     match command {
         "exit" => cmd_exit(),
         "alias" => cmd_alias(state, args),
         "cd" => cmd_cd(args),
         "pwd" => cmd_pwd(),
-        "export" => cmd_export(args, output),
+        "export" => cmd_export(args),
         _ => Err(ShellError::NoBuiltin)
     }
 }
@@ -79,9 +79,9 @@ fn cmd_pwd() -> Result<CmdOutput, ShellError> {
     return Ok(output);
 }
 
-fn cmd_export(args: &Vec<String>, output: &CmdOutput) -> Result<CmdOutput, ShellError> {
+fn cmd_export(args: &Vec<String>) -> Result<CmdOutput, ShellError> {
     if args.len() <= 0 {
-        return execute("env", &Vec::new(), output);
+        return execute("env", &Vec::new());
     }
     for arg in args {
         let kv = arg.split('=').collect::<Vec<&str>>();
