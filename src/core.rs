@@ -11,7 +11,8 @@ use crate::tokenizer::TokenizationError;
 pub enum ShellError {
     Tokenization(TokenizationError),
     Execution(ExecutionError),
-    ExitRequest()
+    NoBuiltin,
+    ExitRequest
 }
 
 impl From<ExecutionError> for ShellError {

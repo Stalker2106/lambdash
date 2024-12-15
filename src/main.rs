@@ -18,8 +18,9 @@ use crossterm::{
     QueueableCommand
 };
 
+mod io;
 mod core;
-mod expressiontree;
+mod command;
 mod config;
 mod tokenizer;
 mod eval;
@@ -278,10 +279,11 @@ fn main() {
                             prompt_readloop(&mut state, &mut prompt, &history, &mut history_idx);
                             expr = prompt.get_input().clone();
                         }
-                        ShellError::ExitRequest() => {
+                        ShellError::ExitRequest => {
                             chars_read = -1;
                             break;
                         }
+                        _ => ()
                     },
                 }
             }

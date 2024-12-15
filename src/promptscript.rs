@@ -90,12 +90,8 @@ fn render_ps_tokens(state: &mut ShellState, tokens: &[Token]) -> CmdOutput {
                 cursor.queue(Print(text)).unwrap();
             },
             Token::Variable(var_name) => {
-                if let Some(value) = expand_variable(state, var_name) {
-                    cursor.queue(Print(value)).unwrap();
-                } else {
-                    cursor.queue(Print(format!("${}", var_name))).unwrap();
-                }
-            }
+                cursor.queue(Print(expand_variable(state, var_name))).unwrap();
+            },
             Token::Tag { name, value } => {
                 match name.as_str() {
                     "color" => {

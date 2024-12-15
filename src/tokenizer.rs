@@ -1,29 +1,30 @@
 use std::iter::Peekable;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum RedirectionType {
-    Left,
-    AppendLeft,
-    Right,
-    AppendRight
+    Input,  // >
+    Output, // <
+    Append, // >>
+    Heredoc // <<
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum ConditionType {
-    And,
-    Or,
+    And, // &&
+    Or,  // ||
 }
 
+#[derive(Clone)]
 pub enum Token {
     Word(String),
-    Pipe,         // |
-    Background,   // &
-    Negate,       // !
-    Subexpression(Vec<Token>), //() or ``
+    Pipe,                         // |
+    Background,                   // &
+    Negate,                       // !
+    Subexpression(Vec<Token>),    // () or ``
     Redirection(RedirectionType), // >, <, >>, <<
-    Variable(String), // $VAR or ${VAR}
-    Operator(ConditionType), // && or ||
-    CommandSeparator,   //;
+    Variable(String),             // $VAR or ${VAR}
+    Operator(ConditionType),      // && or ||
+    CommandSeparator,             // ;
 }
 
 const RESERVED_CHARS: &str = "\"';|&$<>";
@@ -94,18 +95,18 @@ pub fn tokenize(expr: &String) -> Result<Vec<Token>, TokenizationError> {
                 if chars.peek() == Some(&'>') {
                     chars.next();
                     index += 1;
-                    tokens.push(Token::Redirection(RedirectionType::AppendRight));
+                    tokens.push(Token::Redirection(RedirectionType::Append));
                 } else {
-                    tokens.push(Token::Redirection(RedirectionType::Right));
+                    tokens.push(Token::Redirection(RedirectionType::Output));
                 }
             },
             '<' => {
                 if chars.peek() == Some(&'<') {
                     chars.next();
                     index += 1;
-                    tokens.push(Token::Redirection(RedirectionType::AppendLeft));
+                    tokens.push(Token::Redirection(RedirectionType::Input));
                 } else {
-                    tokens.push(Token::Redirection(RedirectionType::Left));
+                    tokens.push(Token::Redirection(RedirectionType::Heredoc));
                 }
             },
             '$' => {
