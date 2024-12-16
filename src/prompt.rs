@@ -24,13 +24,16 @@ impl Prompt {
         self.input.push(c);
     }
 
-    pub fn remove_char(&mut self) -> bool {
-        if self.cursor <= 0 {
-            return false;
+    pub fn remove_char(&mut self, back: bool) -> bool {
+        if back && self.cursor > 0 {
+            self.cursor -= 1;
+            self.input.remove(self.cursor);
+            return true;
+        } else if !back && self.cursor < self.input.len() {
+            self.input.remove(self.cursor);
+            return true;
         }
-        self.cursor -= 1;
-        self.input.remove(self.cursor);
-        return true;
+        return false;
     }
 
     pub fn set_input(&mut self, str: &str) {

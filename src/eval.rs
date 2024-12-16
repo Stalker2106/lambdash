@@ -42,6 +42,13 @@ pub fn expand_tokens(state: &mut ShellState, tokens: &mut Vec<Token>) {
             Token::Variable(var_name) => {
                 *token = Token::Word(expand_variable(state, var_name));
             }
+            Token::Word(word) => {
+                if word.contains('~') {
+                    if let Ok(home) = env::var("HOME") {
+                        *token = Token::Word(word.replace("~", &home));
+                    }
+                }
+            }
             _ => {}
         }
     }

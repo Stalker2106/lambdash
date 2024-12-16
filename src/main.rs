@@ -182,8 +182,17 @@ pub fn prompt_readloop(state: &mut ShellState, prompt: &mut Prompt, history: &Hi
                                 }
                             },
                             KeyCode::Tab => (),
+                            KeyCode::Delete => {
+                                if prompt.remove_char(false) {
+                                    clear_prompt_input(state);
+                                    print_prompt_input(state, prompt.get_input());
+                                    let (ps1col, ps1row) = state.ps1pos;
+                                    let (curcol, currow) = prompt.get_cursor_offset();
+                                    state.stdout.queue(cursor::MoveTo(ps1col + curcol as u16, ps1row + currow as u16)).unwrap();
+                                }
+                            },
                             KeyCode::Backspace => {
-                                if prompt.remove_char() {
+                                if prompt.remove_char(true) {
                                     clear_prompt_input(state);
                                     print_prompt_input(state, prompt.get_input());
                                     let (ps1col, ps1row) = state.ps1pos;

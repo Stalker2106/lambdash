@@ -25,16 +25,15 @@ This shell is currently **not stable** and is intended primarily for **education
 
 #### To be implemented
 
+- <<>> Input/output redirection
 - Character escaping
 - Background
-- ~ handling
 - (()) arithmetic expressions
 - *,? globs
 - foo=bar runtime variables assignment
 - ! negate
 - [[]] Conditions
 - # Comments
-- <<>> Input/output redirection
 - $(),`` Subcommands / Subshells
 - Autocomplete
 
