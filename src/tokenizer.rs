@@ -35,10 +35,28 @@ pub enum TokenizationError {
     UnmatchedCharacter
 }
 
+pub fn handle_escaping(iter: &mut Peekable<std::str::Chars>, index: &mut i32, peeked: char) -> Option<String> {
+    if peeked == '\\' {
+        let mut sequence = peeked.to_string();
+        iter.next();
+        *index += 1;
+        if let Some(escaped) = iter.peek() {
+            sequence.push(*escaped);
+            *index += 1;
+            iter.next();
+            return Some(sequence);
+        }
+        return Some(sequence);
+    }
+    return None;
+}
+
 pub fn parse_identifier(iter: &mut Peekable<std::str::Chars>, index: &mut i32) -> String {
     let mut identifier = String::new();
     while let Some(&next) = iter.peek() {
-        if next.is_alphanumeric() || next == '_' || is_emoji(next) {
+        if let Some(sequence) = handle_escaping(iter, index, next) {
+            identifier.push_str(&sequence);
+        } else if next.is_alphanumeric() || next == '_' || is_emoji(next) {
             identifier.push(iter.next().unwrap());
             *index += 1;
         } else {
@@ -52,7 +70,9 @@ const SEPARATOR_CHARS: &str = "\"';|$<>";
 fn parse_until_separator(iter: &mut Peekable<std::str::Chars>, index: &mut i32) -> String {
     let mut word = String::new();
     while let Some(&next) = iter.peek() {
-        if next.is_whitespace() || SEPARATOR_CHARS.contains(next) {
+        if let Some(sequence) = handle_escaping(iter, index, next) {
+            word.push_str(&sequence);
+        } else if next.is_whitespace() || SEPARATOR_CHARS.contains(next) {
             break;
         }
         word.push(iter.next().unwrap());
@@ -65,16 +85,13 @@ fn parse_until_next(iter: &mut Peekable<std::str::Chars>, index: &mut i32, closi
     let mut closed = false;
     let mut content = String::new();
     while let Some(&next) = iter.peek() {
-        if next == closing_char {
+        if let Some(sequence) = handle_escaping(iter, index, next) {
+            content.push_str(&sequence);
+        } if next == closing_char {
             closed = true;
             iter.next();
             *index += 1;
             break;
-        } else if next == '\\' {
-            content.push(iter.next().unwrap());
-            if let Some(_) = iter.peek() {
-                content.push(iter.next().unwrap());
-            }
         }
         content.push(iter.next().unwrap());
     }
