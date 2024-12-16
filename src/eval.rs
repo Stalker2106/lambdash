@@ -1,4 +1,4 @@
-
+use std::io::Write;
 use std::env;
 use std::process;
 use std::process::Stdio;
@@ -50,22 +50,20 @@ pub fn expand_tokens(state: &mut ShellState, tokens: &mut Vec<Token>) {
 // Execution
 
 pub fn run_command(state: &mut ShellState, command: &Vec<command::Command>) -> Result<CmdOutput, ShellError> {
-    let mut output: CmdOutput = CmdOutput::new();
-    let mut pipe = false;
+    let mut output: Option<CmdOutput> = None;
     for step in command {
         let cmd = &step.words[0];
         let args = step.words[1..].to_vec();
-        let input = if pipe { Some(output.clone()) } else { None };
-        match match_builtin(state, cmd, &args, &input) {
+        match match_builtin(state, cmd, &args, &output) {
             Ok(out) => {
-                output.combine(&out);
+                output = Some(out);
             }
             Err(error) => {
                 match error {
                     ShellError::NoBuiltin => {
-                        match execute(cmd, &args, &input) {
+                        match execute(cmd, &args, &output) {
                             Ok(out) => {
-                                output.combine(&out);
+                                output = Some(out);
                             },
                             Err(err) => return Err(err)
                         }
@@ -74,23 +72,48 @@ pub fn run_command(state: &mut ShellState, command: &Vec<command::Command>) -> R
                 }
             }
         }
-        pipe = true;
     }
-    return Ok(output);
+    return Ok(output.unwrap());
 }
 
 pub fn execute(command: &str, args: &Vec<String>, input: &Option<CmdOutput>) -> Result<CmdOutput, ShellError> {
     let mut process = process::Command::new(command);
     process.args(args)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
+        .stdin(Stdio::piped()) // Allow piping input
+        .stdout(Stdio::piped()) // Capture stdout
+        .stderr(Stdio::piped()); // Capture stderr
 
-    // If no input, execute the command normally
-    match process.output() {
+    // Spawn the process
+    let mut child = match process.spawn() {
+        Ok(child) => child,
+        Err(_error) => {
+            return Err(ShellError::Execution(ExecutionError::new(
+                127,
+                format!("{}: command not found", command),
+            )))
+        }
+    };
+
+    // If there's input, write it to the child's stdin
+    if let Some(input_data) = input {
+        if let Some(input_stdout) = &input_data.stdout {
+            if let Some(stdin) = child.stdin.as_mut() {
+                if let Err(e) = stdin.write_all(&input_stdout) {
+                    return Err(ShellError::Execution(ExecutionError::new(
+                        1,
+                        format!("Failed to write to stdin: {}", e),
+                    )));
+                }
+            }
+        }
+    }
+
+    // Wait for the child process to complete and capture the output
+    match child.wait_with_output() {
         Ok(output) => Ok(CmdOutput::from_output(&output)),
-        Err(_error) => Err(ShellError::Execution(ExecutionError::new(
-            127,
-            format!("{}: command not found", command),
+        Err(e) => Err(ShellError::Execution(ExecutionError::new(
+            1,
+            format!("Failed to execute command: {}", e),
         ))),
     }
 }
