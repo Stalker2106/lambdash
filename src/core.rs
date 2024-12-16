@@ -4,6 +4,7 @@ use std::process::Child;
 
 use crate::config::{ShellConfig, load};
 use crate::eval::ExecutionError;
+use crate::history::History;
 use crate::tokenizer::TokenizationError;
 
 #[derive(Debug)]
@@ -30,6 +31,7 @@ pub struct ShellState<'a> {
     pub status: i32,
     pub ps1pos: (u16, u16),
     pub jobs: Vec<Child>,
+    pub history: History,
     pub aliases: HashMap<String, String>,
     pub config: ShellConfig,
     pub stdout: &'a mut dyn Write,
@@ -42,6 +44,7 @@ impl<'a> ShellState<'a> {
             status: 0,
             ps1pos: (0,0),
             jobs: Vec::new(),
+            history: History::new(),
             aliases: HashMap::new(),
             config: load(),
             stdout: out,

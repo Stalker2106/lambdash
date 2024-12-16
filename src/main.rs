@@ -31,8 +31,7 @@ mod cmdoutput;
 mod history;
 
 use core::{ShellError, ShellState};
-use prompt::Prompt;
-use history::History;
+use prompt::{CursorMovement, Prompt};
 use eval::eval_expr;
 use promptscript::eval_ps;
 
@@ -65,7 +64,7 @@ pub fn update_size(width: u16, height: u16) {
     env::set_var("LINES", height.to_string());
 }
 
-pub fn prompt_readloop(state: &mut ShellState, prompt: &mut Prompt, history: &History, history_idx: &mut Option<usize>) -> i32 {
+pub fn prompt_readloop(state: &mut ShellState, prompt: &mut Prompt, history_idx: &mut Option<usize>) -> i32 {
     let mut chars_read = -1;
     crossterm::terminal::enable_raw_mode().unwrap();
     loop {
@@ -98,10 +97,35 @@ pub fn prompt_readloop(state: &mut ShellState, prompt: &mut Prompt, history: &Hi
                                         prompt.stash_input();
                                         prompt.clear_input();
                                         break;
+                                    },
+                                    'k' => {
+                                        if prompt.truncate_input() {
+                                            state.stdout.queue(Clear(ClearType::FromCursorDown)).unwrap();
+                                        }
                                     }
                                     _ => ()
                                 }
-                            }
+                            },
+                            _ => ()
+                        }
+                    } else if event.modifiers.contains(KeyModifiers::ALT) {
+                        match event.code {
+                            KeyCode::Left => {
+                                let diff = prompt.move_cursor_left(CursorMovement::Word);
+                                if diff > 0 {
+                                    let (ps1col, ps1row) = state.ps1pos;
+                                    let (curcol, currow) = prompt.get_cursor_offset();
+                                    state.stdout.queue(cursor::MoveTo(ps1col + curcol as u16,ps1row + currow as u16)).unwrap();
+                                }
+                            },
+                            KeyCode::Right => {
+                                let diff = prompt.move_cursor_right(CursorMovement::Word);
+                                if diff > 0 {
+                                    let (ps1col, ps1row) = state.ps1pos;
+                                    let (curcol, currow) = prompt.get_cursor_offset();
+                                    state.stdout.queue(cursor::MoveTo(ps1col + curcol as u16, ps1row + currow as u16)).unwrap();
+                                }
+                            },
                             _ => ()
                         }
                     } else {
@@ -130,7 +154,7 @@ pub fn prompt_readloop(state: &mut ShellState, prompt: &mut Prompt, history: &Hi
                                 }
                             },
                             KeyCode::Left => {
-                                let diff = prompt.move_cursor_left();
+                                let diff = prompt.move_cursor_left(CursorMovement::One);
                                 if diff > 0 {
                                     let (ps1col, ps1row) = state.ps1pos;
                                     let (curcol, currow) = prompt.get_cursor_offset();
@@ -138,7 +162,7 @@ pub fn prompt_readloop(state: &mut ShellState, prompt: &mut Prompt, history: &Hi
                                 }
                             },
                             KeyCode::Right => {
-                                let diff = prompt.move_cursor_right();
+                                let diff = prompt.move_cursor_right(CursorMovement::One);
                                 if diff > 0 {
                                     let (ps1col, ps1row) = state.ps1pos;
                                     let (curcol, currow) = prompt.get_cursor_offset();
@@ -147,30 +171,30 @@ pub fn prompt_readloop(state: &mut ShellState, prompt: &mut Prompt, history: &Hi
                             },
                             KeyCode::Up => {
                                 if !history_idx.is_some() {
-                                    let index = history.get_first_index();
+                                    let index = state.history.get_first_index();
                                     if index.is_some() {
                                         *history_idx = index;
                                         prompt.stash_input();
                                         clear_prompt_input(state);
-                                        prompt.set_input(history.get(history_idx.unwrap()));
+                                        prompt.set_input(state.history.get(history_idx.unwrap()));
                                         print_prompt_input(state, prompt.get_input());
                                     }
                                 } else {
                                     if history_idx.unwrap() > 0 {
                                         *history_idx = Some(history_idx.unwrap() - 1);
                                         clear_prompt_input(state);
-                                        prompt.set_input(history.get(history_idx.unwrap()));
+                                        prompt.set_input(state.history.get(history_idx.unwrap()));
                                         print_prompt_input(state, prompt.get_input());
                                     }
                                 }
                             },
                             KeyCode::Down => {
                                 if history_idx.is_some() {
-                                    if let Some(last_index) = history.get_first_index() {
+                                    if let Some(last_index) = state.history.get_first_index() {
                                         if history_idx.unwrap() < last_index {
                                             *history_idx = Some(history_idx.unwrap() + 1);
                                             clear_prompt_input(state);
-                                            prompt.set_input(history.get(history_idx.unwrap()));
+                                            prompt.set_input(state.history.get(history_idx.unwrap()));
                                             print_prompt_input(state, prompt.get_input());
                                         } else {
                                             *history_idx = None;
@@ -227,7 +251,6 @@ fn main() {
     let mut stderr = stderr();
     let mut state: ShellState = ShellState::new(&mut stdout, &mut stderr);
     let mut prompt = Prompt::new();
-    let mut history = History::new();
     let ps1script = state.config.prompt.ps1.clone();
     // main loop
     loop {
@@ -242,19 +265,19 @@ fn main() {
         state.stdout.flush().unwrap();
         let mut history_idx: Option<usize> = None;
         // read loop
-        let mut chars_read = prompt_readloop(&mut state, &mut prompt, &history, &mut history_idx);
+        let mut chars_read = prompt_readloop(&mut state, &mut prompt, &mut history_idx);
         if prompt.has_input() {
             let mut expr = prompt.get_input().clone();
             // eval loop
             loop {
                 match eval_expr(&mut state, &expr) {
                     Ok(_) => {
-                        history.submit(&expr);
+                        state.history.submit(&expr);
                         break; // Exit loop after successful execution
                     }
                     Err(e) => match e {
                         ShellError::Execution(error) => {
-                            history.submit(&expr);
+                            state.history.submit(&expr);
                             state.status = error.status;
                             state.stdout
                                 .queue(SetForegroundColor(Color::Red)).unwrap()
@@ -270,7 +293,7 @@ fn main() {
                             let (curcol, currow) = prompt.get_cursor_offset();
                             state.stdout.queue(cursor::MoveTo(ps1col + curcol as u16, ps1row + currow as u16)).unwrap()
                                         .flush().unwrap();
-                            prompt_readloop(&mut state, &mut prompt, &history, &mut history_idx);
+                            prompt_readloop(&mut state, &mut prompt, &mut history_idx);
                             expr = prompt.get_input().clone();
                         }
                         ShellError::ExitRequest => {

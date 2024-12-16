@@ -11,6 +11,12 @@ pub enum CursorPosition {
     End
 }
 
+#[derive(PartialEq)]
+pub enum CursorMovement {
+    One,
+    Word
+}
+
 impl Prompt {
     pub fn new() -> Prompt {
         return Prompt{
@@ -51,6 +57,14 @@ impl Prompt {
     pub fn clear_input(&mut self) {
         self.input.clear();
         self.cursor = 0;
+    }
+
+    pub fn truncate_input(&mut self) -> bool {
+        if self.cursor == self.input.len() {
+            return false;
+        }
+        self.input.truncate(self.cursor);
+        return true;
     }
 
     pub fn has_input(&self) -> bool {
@@ -114,7 +128,7 @@ impl Prompt {
         return false;
     }
 
-    pub fn move_cursor_left(&mut self) -> usize {
+    pub fn move_cursor_left(&mut self, movement: CursorMovement) -> usize {
         if self.cursor == 0 {
             return 0;
         }
@@ -123,6 +137,10 @@ impl Prompt {
             if !self.input.is_char_boundary(local_cursor) {
                 local_cursor -= 1;
             } else {
+                if movement == CursorMovement::Word && local_cursor > 0 && self.input[local_cursor..].chars().next().unwrap_or_default().is_alphanumeric() {
+                    local_cursor -= 1;
+                    continue;
+                }
                 let diff = self.cursor - local_cursor;
                 self.cursor = local_cursor;
                 return diff;
@@ -131,7 +149,7 @@ impl Prompt {
         return 0;
     }
 
-    pub fn move_cursor_right(&mut self) -> usize {
+    pub fn move_cursor_right(&mut self, movement: CursorMovement) -> usize {
         if self.cursor == self.input.len() {
             return 0;
         }
@@ -140,6 +158,10 @@ impl Prompt {
             if !self.input.is_char_boundary(local_cursor) {
                 local_cursor += 1;
             } else {
+                if movement == CursorMovement::Word && local_cursor < self.input.len() && self.input[local_cursor..].chars().next().unwrap_or_default().is_alphanumeric() {
+                    local_cursor += 1;
+                    continue;
+                }
                 let diff = local_cursor - self.cursor;
                 self.cursor = local_cursor;
                 return diff;

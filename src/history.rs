@@ -30,4 +30,8 @@ impl History {
         }
         return Some(self.values.len() - 1);
     }
+
+    pub fn get_values(&self) -> &Vec<String> {
+        return &self.values;
+    }
 }

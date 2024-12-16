@@ -10,11 +10,12 @@ use crate::eval::{execute_program, ExecutionError};
 
 pub fn match_builtin(state: &mut ShellState, command: &str, args: &Vec<String>, input: &Option<Vec<u8>>) -> Result<CmdOutput, ShellError> {
     match command {
-        "exit" => cmd_exit(),
         "alias" => cmd_alias(state, args),
         "cd" => cmd_cd(args),
-        "pwd" => cmd_pwd(),
+        "exit" => cmd_exit(),
         "export" => cmd_export(args, input),
+        "history" => cmd_history(state, args),
+        "pwd" => cmd_pwd(),
         _ => Err(ShellError::NoBuiltin)
     }
 }
@@ -42,6 +43,7 @@ fn cmd_alias(state: &mut ShellState, args: &Vec<String>) -> Result<CmdOutput, Sh
             }
         }
     }
+    output.status = Some(0);
     return Ok(output);
 }
 
@@ -69,11 +71,33 @@ fn cmd_cd(args: &Vec<String>) -> Result<CmdOutput, ShellError> {
     return Ok(CmdOutput::from_status(0));
 }
 
+fn cmd_history(state: &ShellState, args: &Vec<String>) -> Result<CmdOutput, ShellError> {
+    let mut output = CmdOutput::new();
+    let history_values = state.history.get_values().clone();
+    match args.len() {
+        0 => {
+            output.stdout = history_values.join("\n").into_bytes();
+            output.status = Some(0);
+            return Ok(output);
+        }
+        _ => {
+            output.stdout = history_values.into_iter()
+                                        .filter(|value| args.contains(value))
+                                        .collect::<Vec<String>>()
+                                        .join("\n")
+                                        .into_bytes();
+            output.status = Some(0);
+            Ok(output)
+        }
+    }
+}
+
 fn cmd_pwd() -> Result<CmdOutput, ShellError> {
     let mut output = CmdOutput::new();
     let mut env_output = env::current_dir().unwrap().to_string_lossy().as_bytes().to_vec();
     env_output.push(b'\n');
     output.stdout = env_output;
+    output.status = Some(0);
     return Ok(output);
 }
 
