@@ -6,9 +6,9 @@ use crossterm::QueueableCommand;
 
 use crate::cmdoutput::CmdOutput;
 use crate::core::{ShellState, ShellError};
-use crate::eval::{execute, ExecutionError};
+use crate::eval::{execute_program, ExecutionError};
 
-pub fn match_builtin(state: &mut ShellState, command: &str, args: &Vec<String>, input: &Option<CmdOutput>) -> Result<CmdOutput, ShellError> {
+pub fn match_builtin(state: &mut ShellState, command: &str, args: &Vec<String>, input: &Option<Vec<u8>>) -> Result<CmdOutput, ShellError> {
     match command {
         "exit" => cmd_exit(),
         "alias" => cmd_alias(state, args),
@@ -24,8 +24,8 @@ fn cmd_exit() -> Result<CmdOutput, ShellError> {
 }
 
 fn cmd_alias(state: &mut ShellState, args: &Vec<String>) -> Result<CmdOutput, ShellError> {
-    let mut output = Vec::new();
-    let mut cursor = Cursor::new(&mut output);
+    let mut output = CmdOutput::new();
+    let mut cursor = Cursor::new(&mut output.stdout);
     match args.len() {
         0 => {
             for (name, command) in state.aliases.iter() {
@@ -42,7 +42,7 @@ fn cmd_alias(state: &mut ShellState, args: &Vec<String>) -> Result<CmdOutput, Sh
             }
         }
     }
-    return Ok(CmdOutput{status: 0, stdout: Some(output), stderr: None });
+    return Ok(output);
 }
 
 fn cmd_cd(args: &Vec<String>) -> Result<CmdOutput, ShellError> {
@@ -70,16 +70,16 @@ fn cmd_cd(args: &Vec<String>) -> Result<CmdOutput, ShellError> {
 }
 
 fn cmd_pwd() -> Result<CmdOutput, ShellError> {
-    let mut output = CmdOutput::from_status(0);
+    let mut output = CmdOutput::new();
     let mut env_output = env::current_dir().unwrap().to_string_lossy().as_bytes().to_vec();
     env_output.push(b'\n');
-    output.stdout = Some(env_output);
+    output.stdout = env_output;
     return Ok(output);
 }
 
-fn cmd_export(args: &Vec<String>, input: &Option<CmdOutput>) -> Result<CmdOutput, ShellError> {
+fn cmd_export(args: &Vec<String>, input: &Option<Vec<u8>>) -> Result<CmdOutput, ShellError> {
     if args.len() <= 0 {
-        return execute("env", &Vec::new(), input);
+        return execute_program("env", &Vec::new(), input);
     }
     for arg in args {
         let kv = arg.split('=').collect::<Vec<&str>>();

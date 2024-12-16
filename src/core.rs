@@ -1,5 +1,6 @@
 use std::io::Write;
 use std::collections::HashMap;
+use std::process::Child;
 
 use crate::config::{ShellConfig, load};
 use crate::eval::ExecutionError;
@@ -28,6 +29,7 @@ impl From<TokenizationError> for ShellError {
 pub struct ShellState<'a> {
     pub status: i32,
     pub ps1pos: (u16, u16),
+    pub jobs: Vec<Child>,
     pub aliases: HashMap<String, String>,
     pub config: ShellConfig,
     pub stdout: &'a mut dyn Write,
@@ -39,6 +41,7 @@ impl<'a> ShellState<'a> {
         ShellState {
             status: 0,
             ps1pos: (0,0),
+            jobs: Vec::new(),
             aliases: HashMap::new(),
             config: load(),
             stdout: out,

@@ -4,6 +4,11 @@ pub struct Prompt {
     cursor: usize,
 }
 
+pub enum CursorPosition {
+    Origin,
+    End
+}
+
 impl Prompt {
     pub fn new() -> Prompt {
         return Prompt{
@@ -17,7 +22,7 @@ impl Prompt {
 
     pub fn add_char(&mut self, c: char) {
         self.input.insert(self.cursor, c);
-        self.cursor += 1;
+        self.cursor += c.len_utf8();
     }
 
     pub fn append_char(&mut self, c: char) {
@@ -75,51 +80,67 @@ impl Prompt {
     // cursor
 
     pub fn get_cursor(&self) -> usize {
-        return self.cursor;
-    }
-    pub fn get_cursor_offset(&self) -> (usize, usize) {
-        let sub_input = &self.input[..self.cursor];
-        let newline_count = sub_input.matches('\n').count();
-        if let Some(pos) = sub_input.rfind('\n') {
-            return (self.cursor - pos - 1, newline_count)
-        } else {
-            return (self.cursor, 0)
-        }
+        return self.input[..self.cursor].chars().count()
     }
 
-    pub fn move_cursor(&mut self, pos: usize) -> bool {
-        if pos <= self.input.len() {
-            self.cursor = pos;
-            return true;
+    pub fn get_cursor_offset(&self) -> (usize, usize) {
+        let input_until_cursor = &self.input[..self.cursor];
+        let newline_count = input_until_cursor.matches('\n').count();
+        let mut column_index = self.cursor;
+        if let Some(pos) = input_until_cursor.rfind('\n') {
+            column_index -= pos - 1;
+        }
+        return (self.input[..column_index].chars().count(), newline_count)
+    }
+
+    pub fn move_cursor(&mut self, pos: CursorPosition) -> bool {
+        match pos {
+            CursorPosition::Origin => {
+                if self.cursor != 0 {
+                    self.cursor = 0;
+                    return true;
+                }
+            },
+            CursorPosition::End => {
+                if self.cursor != self.input.len()-1 {
+                    self.cursor = self.input.len()-1;
+                    return true;
+                }
+            }
         }
         return false;
     }
 
-    pub fn move_cursor_left(&mut self, amount: usize) -> Option<usize> {
-        if self.cursor > 0 {
-            let newpos: i32 = (self.cursor - amount) as i32;
-            if newpos < 0 {
-                self.cursor = 0;
-                return Some(amount - newpos as usize);
-            }
-            self.cursor = newpos as usize;
-            return Some(amount);
+    pub fn move_cursor_left(&mut self) -> bool {
+        if self.cursor == 0 {
+            return false;
         }
-        return None;
+        let mut local_cursor = self.cursor - 1;
+        while local_cursor >= 0 {
+            if !self.input.is_char_boundary(local_cursor) {
+                local_cursor -= 1;
+            } else {
+                self.cursor = local_cursor;
+                return true;
+            }
+        }
+        return false;
     }
 
-    pub fn move_cursor_right(&mut self, amount: usize) -> Option<usize> {
-        if self.cursor < self.get_input().len() {
-            let newpos = self.cursor + amount;
-            if newpos > self.get_input().len() {
-                let diff = newpos - self.cursor;
-                self.cursor = self.get_input().len();
-                return Some(diff);
-            }
-            self.cursor = newpos;
-            return Some(amount);
+    pub fn move_cursor_right(&mut self) -> bool {
+        if self.cursor == self.input.len() {
+            return false;
         }
-        return None;
+        let mut local_cursor = self.cursor + 1;
+        while local_cursor <= self.input.len() {
+            if !self.input.is_char_boundary(local_cursor) {
+                local_cursor += 1;
+            } else {
+                self.cursor = local_cursor;
+                return true;
+            }
+        }
+        return false;
     }
 
 }

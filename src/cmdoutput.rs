@@ -2,17 +2,17 @@ use std::process::Output;
 
 #[derive(Clone)]
 pub struct CmdOutput {
-    pub status: i32,
-    pub stdout: Option<Vec<u8>>,
-    pub stderr: Option<Vec<u8>>
+    pub status: Option<i32>,
+    pub stdout: Vec<u8>,
+    pub stderr: Vec<u8>
 }
 
 impl CmdOutput {
     pub fn new() -> CmdOutput {
         return CmdOutput{
-            status: 0,
-            stdout: Some(Vec::new()),
-            stderr: None
+            status: None,
+            stdout: Vec::new(),
+            stderr: Vec::new()
         }
     }
     pub fn from_output(out: &Output) -> CmdOutput {
@@ -21,27 +21,22 @@ impl CmdOutput {
             code = exitstatus;
         }
         return CmdOutput{
-            status: code,
-            stdout: Some(out.stdout.clone()),
-            stderr: Some(out.stderr.clone())
-        }
+            status: Some(code),
+            stdout: out.stdout.clone(),
+            stderr: out.stderr.clone()
+        };
     }
 
     pub fn from_status(exitcode: i32) -> CmdOutput {
         return CmdOutput{
-            status: exitcode,
-            stdout: None,
-            stderr: None
+            status: Some(exitcode),
+            stdout: Vec::new(),
+            stderr: Vec::new()
         }
     }
 
-    pub fn combine(&mut self, out: &CmdOutput) {
-        if let Some(e_stdout) = out.stdout.clone() {
-            if let Some(stdout) = &mut self.stdout {
-                stdout.extend(e_stdout);
-            } else {
-                self.stdout = Some(e_stdout);
-            }
-        }
+    pub fn combine(&mut self, out: CmdOutput) {
+        self.stdout.extend(out.stdout);
+        self.stderr.extend(out.stderr);
     }
 }

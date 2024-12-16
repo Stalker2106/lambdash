@@ -2,7 +2,7 @@ use std::vec::Vec;
 use core::slice::Iter;
 use std::iter::Peekable;
 
-use crate::{tokenizer::{RedirectionType, Token}};
+use crate::tokenizer::{RedirectionType, Token};
 
 #[derive(Debug)]
 pub enum ParseError {
@@ -17,24 +17,26 @@ pub struct Redirection {
 }
 
 
-pub struct Command {
+pub struct Expression {
     pub words: Vec<String>,
-    pub redirections: Vec<Redirection>,
+    pub inputs: Vec<Redirection>,
+    pub outputs: Vec<Redirection>,
     pub background: bool
 }
 
 
-pub fn parse_command(tokens_iter: &mut Peekable<Iter<Token>>) -> Result<Vec<Command>, ParseError>  {
-    let mut commands: Vec<Command> = Vec::new();
+pub fn parse_command(tokens_iter: &mut Peekable<Iter<Token>>) -> Result<Vec<Expression>, ParseError>  {
+    let mut commands: Vec<Expression> = Vec::new();
     while let Some(token) = tokens_iter.next() {
         match token {
             Token::Word(word) => {
                 if let Some(cmd) = commands.last_mut() {
                     cmd.words.push(word.clone());
                 } else {
-                    commands.push(Command{
+                    commands.push(Expression{
                         words: vec![word.clone()],
-                        redirections: Vec::new(),
+                        inputs: Vec::new(),
+                        outputs: Vec::new(),
                         background: false
                     })
                 }
@@ -45,9 +47,10 @@ pub fn parse_command(tokens_iter: &mut Peekable<Iter<Token>>) -> Result<Vec<Comm
                         match next_token {
                             Token::Word(word) => {
                                 // Insert new command
-                                commands.push(Command{
+                                commands.push(Expression{
                                     words: vec![word.clone()],
-                                    redirections: Vec::new(),
+                                    inputs: Vec::new(),
+                                    outputs: Vec::new(),
                                     background: false
                                 })
                             },
@@ -66,10 +69,18 @@ pub fn parse_command(tokens_iter: &mut Peekable<Iter<Token>>) -> Result<Vec<Comm
                         match next_token {
                             Token::Word(word) => {
                                 // Set current command redirection
-                                cmd.redirections.push(Redirection{
+                                let redirection = Redirection{
                                     rtype: rtype.clone(),
                                     target: (word).clone()
-                                });
+                                };
+                                match rtype {
+                                    RedirectionType::Output | RedirectionType::Append => {
+                                        cmd.outputs.push(redirection);
+                                    },
+                                    RedirectionType::Input | RedirectionType::Heredoc => {
+                                        cmd.inputs.push(redirection);
+                                    }
+                                }
                             },
                             _ => return Err(ParseError::InvalidPipe)
                         }
@@ -99,7 +110,7 @@ pub fn parse_command(tokens_iter: &mut Peekable<Iter<Token>>) -> Result<Vec<Comm
     return Ok(commands);
 }
 
-pub fn parse_tokens(tokens: &Vec<Token>) -> Result<Vec<Vec<Command>>, ParseError> {
+pub fn parse_tokens(tokens: &Vec<Token>) -> Result<Vec<Vec<Expression>>, ParseError> {
     let mut parsed_commands = Vec::new();
     let mut tokens_iter = tokens.iter().peekable();
 

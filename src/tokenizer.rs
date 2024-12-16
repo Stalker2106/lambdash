@@ -9,6 +9,12 @@ pub enum RedirectionType {
 }
 
 #[derive(Debug, PartialEq, Clone)]
+pub enum RedirectionFD {
+    Stdout,
+    Stderr
+}
+
+#[derive(Debug, PartialEq, Clone)]
 pub enum ConditionType {
     And, // &&
     Or,  // ||
@@ -27,7 +33,7 @@ pub enum Token {
     CommandSeparator,             // ;
 }
 
-const RESERVED_CHARS: &str = "\"';|&$<>";
+const RESERVED_CHARS: &str = "\"';|$<>";
 
 #[derive(Debug, PartialEq)]
 pub enum TokenizationError {

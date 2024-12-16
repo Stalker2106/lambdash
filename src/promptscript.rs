@@ -79,8 +79,8 @@ fn parse_color(color: &str) -> Color {
 }
 
 fn render_ps_tokens(state: &mut ShellState, tokens: &[Token]) -> CmdOutput {
-    let mut output = Vec::new();
-    let mut cursor = Cursor::new(&mut output);
+    let mut output = CmdOutput::new();
+    let mut cursor = Cursor::new(&mut output.stdout);
     for token in tokens {
         match token {
             Token::Text(text) => {
@@ -114,7 +114,7 @@ fn render_ps_tokens(state: &mut ShellState, tokens: &[Token]) -> CmdOutput {
             }
         }
     }
-    return CmdOutput{status: 0, stdout: Some(output), stderr: None};
+    return output;
 }
 
 pub fn eval_ps(state: &mut ShellState, expr: &str) -> CmdOutput {

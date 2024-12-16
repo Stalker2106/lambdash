@@ -18,9 +18,9 @@ use crossterm::{
     QueueableCommand
 };
 
-mod io;
+mod fsio;
 mod core;
-mod command;
+mod expression;
 mod config;
 mod tokenizer;
 mod eval;
@@ -109,37 +109,35 @@ pub fn prompt_readloop(state: &mut ShellState, prompt: &mut Prompt, history: &Hi
                             KeyCode::Char(c) => {
                                 prompt.add_char(c);
                                 chars_read += 1;
-                                let p_cursor = prompt.get_cursor();
                                 state.stdout.queue(Print(c)).unwrap();
-                                // if we are inserting, we need to print rest of buffer to preserve it
-                                if p_cursor < prompt.get_input().len() {
-                                    let rest = &prompt.get_input()[p_cursor..];
-                                    state.stdout.queue(Print(rest)).unwrap()
-                                                .queue(cursor::MoveLeft(rest.len() as u16)).unwrap();
-                                }
+                                clear_prompt_input(state);
+                                print_prompt_input(state, prompt.get_input());
+                                let (ps1col, ps1row) = state.ps1pos;
+                                let (curcol, currow) = prompt.get_cursor_offset();
+                                state.stdout.queue(cursor::MoveTo(ps1col + curcol as u16, ps1row + currow as u16)).unwrap();
                             }
                             KeyCode::Home => {
-                                if prompt.move_cursor(0) {
+                                if prompt.move_cursor(prompt::CursorPosition::Origin) {
                                     let (ps1col, ps1row) = state.ps1pos;
                                     state.stdout.queue(cursor::MoveTo(ps1col, ps1row)).unwrap();
                                 }
                             },
                             KeyCode::End => {
-                                if prompt.move_cursor(prompt.get_input().len()) {
+                                if prompt.move_cursor(prompt::CursorPosition::End) {
                                     let (ps1col, ps1row) = state.ps1pos;
                                     let (curcol, currow) = prompt.get_cursor_offset();
                                     state.stdout.queue(cursor::MoveTo(ps1col + curcol as u16, ps1row + currow as u16)).unwrap();
                                 }
                             },
                             KeyCode::Left => {
-                                if let Some(_) = prompt.move_cursor_left(1) {
+                                if prompt.move_cursor_left() {
                                     let (ps1col, ps1row) = state.ps1pos;
                                     let (curcol, currow) = prompt.get_cursor_offset();
                                     state.stdout.queue(cursor::MoveTo(ps1col + curcol as u16,ps1row + currow as u16)).unwrap();
                                 }
                             },
                             KeyCode::Right => {
-                                if let Some(_) = prompt.move_cursor_right(1) {
+                                if prompt.move_cursor_right() {
                                     let (ps1col, ps1row) = state.ps1pos;
                                     let (curcol, currow) = prompt.get_cursor_offset();
                                     state.stdout.queue(cursor::MoveTo(ps1col + curcol as u16, ps1row + currow as u16)).unwrap();
@@ -233,10 +231,8 @@ fn main() {
     loop {
         prompt.unstash_input();
         let ps1out = eval_ps(&mut state, &ps1script);
-        if let Some(ps1_stdout) = ps1out.stdout {
-            if let Ok(ps1) = String::from_utf8(ps1_stdout) {
-                state.stdout.queue(Print(ps1)).unwrap();
-            }
+        if let Ok(ps1) = String::from_utf8(ps1out.stdout) {
+            state.stdout.queue(Print(ps1)).unwrap();
         }
         state.ps1pos = cursor::position().unwrap();
         state.stderr.flush().unwrap();
@@ -250,21 +246,8 @@ fn main() {
             // eval loop
             loop {
                 match eval_expr(&mut state, &expr) {
-                    Ok(res) => {
-                        if let Some(output) = res {
-                            history.submit(&expr);
-                            state.status = output.status;
-                            if let Some(cmd_stdout) = output.stdout {
-                                if let Ok(cmd_out) = String::from_utf8(cmd_stdout) {
-                                    state.stdout.queue(Print(cmd_out)).unwrap();
-                                }
-                            }
-                            if let Some(cmd_stderr) = output.stderr {
-                                if let Ok(cmd_err) = String::from_utf8(cmd_stderr) {
-                                    state.stderr.queue(Print(cmd_err)).unwrap();
-                                }
-                            }
-                        }
+                    Ok(_) => {
+                        history.submit(&expr);
                         break; // Exit loop after successful execution
                     }
                     Err(e) => match e {

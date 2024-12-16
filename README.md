@@ -1,10 +1,9 @@
 ```
    __                 _         _             _     
-  / /  __ _ _ __ ___ | |__   __| | __ _   ___| |__  
- / /  / _` | '_ ` _ \| '_ \ / _` |/ _` | / __| '_ \ 
+  / /  __ _ _ __ ___ | |__   __| | __ _   ___| |__
+ / /  / _` | '_ ` _ \| '_ \ / _` |/ _` | / __| '_ \
 / /__| (_| | | | | | | |_) | (_| | (_| |_\__ \ | | |
 \____/\__,_|_| |_| |_|_.__/ \__,_|\__,_(_)___/_| |_|
-                                                    
 ```
 
 A common shell implementation written in Rust.
@@ -19,13 +18,13 @@ This shell is currently **not stable** and is intended primarily for **education
 - Shell customization
 - Variables expanding
 - Built-in commands (e.g., `export`, `cd`, `alias`, etc.)
-- Multiline input
+- UTF-8, Emoji, Multiline input
 - History
 - Pipe output
+- Input/output redirections
 
 #### To be implemented
 
-- <,<< Input redirection
 - Character escaping
 - Background
 - (()) arithmetic expressions

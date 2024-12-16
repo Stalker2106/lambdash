@@ -6,25 +6,29 @@ pub enum FSError {
     IOError
 }
 
-// Out
-
-fn output_to_file_truncate(output: &Vec<u8>, path: &str) -> Result<(), FSError> {
-    match File::create(path) {
-        Ok(mut file) => {
-            file.write_all(output);
-            return Ok(())
-        },
-        Err(_) => Err(FSError::IOError)
+fn open_file(path: &str, truncate: bool) -> Result<File, FSError> {
+    let mut options = OpenOptions::new();
+    options.write(true).create(true);
+    if truncate {
+        options.truncate(true);
+    } else {
+        options.append(true);
+    }
+    match options.open(path) {
+        Ok(file) => Ok(file),
+        Err(_) => Err(FSError::IOError),
     }
 }
 
-fn output_to_file(output: &Vec<u8>, path: &str) -> Result<(), FSError> {
-    match OpenOptions::new().write(true).create(true).append(true).open(path) {
+// Out
+
+fn output_to_file(output: &Vec<u8>, path: &str, truncate: bool) -> Result<(), FSError> {
+    match open_file(path, truncate) {
         Ok(mut file) => {
             file.write_all(output);
             return Ok(())
         },
-        Err(_) => Err(FSError::IOError)
+        Err(error) => Err(error)
     }
 }
 
