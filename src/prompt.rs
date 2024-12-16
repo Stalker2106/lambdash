@@ -1,3 +1,5 @@
+use unic_emoji_char::is_emoji;
+
 pub struct Prompt {
     input_stash: Option<String>,
     input: String,
@@ -86,11 +88,12 @@ impl Prompt {
     pub fn get_cursor_offset(&self) -> (usize, usize) {
         let input_until_cursor = &self.input[..self.cursor];
         let newline_count = input_until_cursor.matches('\n').count();
-        let mut column_index = self.cursor;
+        let mut column_index = input_until_cursor.chars().map(|c| if is_emoji(c) { 2 } else { 1 }).sum::<usize>();
         if let Some(pos) = input_until_cursor.rfind('\n') {
-            column_index -= pos - 1;
+            let input_newline_cursor = &input_until_cursor[pos + 1..self.cursor];
+            column_index = input_newline_cursor.chars().map(|c| if is_emoji(c) { 2 } else { 1 }).sum::<usize>();
         }
-        return (self.input[..column_index].chars().count(), newline_count)
+        return (column_index, newline_count)
     }
 
     pub fn move_cursor(&mut self, pos: CursorPosition) -> bool {
@@ -111,36 +114,38 @@ impl Prompt {
         return false;
     }
 
-    pub fn move_cursor_left(&mut self) -> bool {
+    pub fn move_cursor_left(&mut self) -> usize {
         if self.cursor == 0 {
-            return false;
+            return 0;
         }
         let mut local_cursor = self.cursor - 1;
         while local_cursor >= 0 {
             if !self.input.is_char_boundary(local_cursor) {
                 local_cursor -= 1;
             } else {
+                let diff = self.cursor - local_cursor;
                 self.cursor = local_cursor;
-                return true;
+                return diff;
             }
         }
-        return false;
+        return 0;
     }
 
-    pub fn move_cursor_right(&mut self) -> bool {
+    pub fn move_cursor_right(&mut self) -> usize {
         if self.cursor == self.input.len() {
-            return false;
+            return 0;
         }
         let mut local_cursor = self.cursor + 1;
         while local_cursor <= self.input.len() {
             if !self.input.is_char_boundary(local_cursor) {
                 local_cursor += 1;
             } else {
+                let diff = local_cursor - self.cursor;
                 self.cursor = local_cursor;
-                return true;
+                return diff;
             }
         }
-        return false;
+        return 0;
     }
 
 }

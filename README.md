@@ -32,7 +32,7 @@ This shell is currently **not stable** and is intended primarily for **education
 - foo=bar runtime variables assignment
 - ! negate
 - [[]] Conditions
-- # Comments
+- \# Comments
 - $(),`` Subcommands / Subshells
 - Autocomplete
 

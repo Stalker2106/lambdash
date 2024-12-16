@@ -7,7 +7,7 @@ use crate::cmdoutput::CmdOutput;
 use crate::core::ShellState;
 use crate::eval::expand_variable;
 use crate::eval::eval_expr;
-use crate::tokenizer::parse_variable;
+use crate::tokenizer::parse_identifier;
 
 enum Token {
     Text(String),
@@ -42,7 +42,7 @@ fn tokenize_ps(input: &str) -> Vec<Token> {
                 }
             }
             '$' => {
-                let var_name: String = parse_variable(&mut chars, &mut index);
+                let var_name: String = parse_identifier(&mut chars, &mut index);
                 tokens.push(Token::Variable(var_name));
             }
             _ => {

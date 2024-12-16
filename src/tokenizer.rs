@@ -1,17 +1,13 @@
 use std::iter::Peekable;
 
+use unic_emoji_char::is_emoji;
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum RedirectionType {
     Input,  // >
     Output, // <
     Append, // >>
     Heredoc // <<
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub enum RedirectionFD {
-    Stdout,
-    Stderr
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -33,24 +29,36 @@ pub enum Token {
     CommandSeparator,             // ;
 }
 
-const RESERVED_CHARS: &str = "\"';|$<>";
 
 #[derive(Debug, PartialEq)]
 pub enum TokenizationError {
     UnmatchedCharacter
 }
 
-pub fn parse_variable(iter: &mut Peekable<std::str::Chars>, index: &mut i32) -> String {
-    let mut var = String::new();
+pub fn parse_identifier(iter: &mut Peekable<std::str::Chars>, index: &mut i32) -> String {
+    let mut identifier = String::new();
     while let Some(&next) = iter.peek() {
-        if next.is_alphanumeric() || next == '_' || (var.len() == 0 && next == '?') {
-            var.push(iter.next().unwrap());
+        if next.is_alphanumeric() || next == '_' || is_emoji(next) {
+            identifier.push(iter.next().unwrap());
             *index += 1;
         } else {
             break;
         }
     }
-    return var;
+    return identifier;
+}
+
+const SEPARATOR_CHARS: &str = "\"';|$<>";
+fn parse_until_separator(iter: &mut Peekable<std::str::Chars>, index: &mut i32) -> String {
+    let mut word = String::new();
+    while let Some(&next) = iter.peek() {
+        if next.is_whitespace() || SEPARATOR_CHARS.contains(next) {
+            break;
+        }
+        word.push(iter.next().unwrap());
+        *index += 1;
+    }
+    return word;
 }
 
 fn parse_until_next(iter: &mut Peekable<std::str::Chars>, index: &mut i32, closing_char: char) -> Result<String, TokenizationError> {
@@ -62,6 +70,11 @@ fn parse_until_next(iter: &mut Peekable<std::str::Chars>, index: &mut i32, closi
             iter.next();
             *index += 1;
             break;
+        } else if next == '\\' {
+            content.push(iter.next().unwrap());
+            if let Some(_) = iter.peek() {
+                content.push(iter.next().unwrap());
+            }
         }
         content.push(iter.next().unwrap());
     }
@@ -116,7 +129,7 @@ pub fn tokenize(expr: &String) -> Result<Vec<Token>, TokenizationError> {
                 }
             },
             '$' => {
-                tokens.push(Token::Variable(parse_variable(&mut chars, &mut index)));
+                tokens.push(Token::Variable(parse_identifier(&mut chars, &mut index)));
             },
             '\'' | '"' => match parse_until_next(&mut chars, &mut index, c) {
                 Ok(content) => {
@@ -140,16 +153,10 @@ pub fn tokenize(expr: &String) -> Result<Vec<Token>, TokenizationError> {
                 Err(error) => return Err(error)
             },
             ';' => tokens.push(Token::CommandSeparator),
-            c if c.is_whitespace() => continue, 
-            _ => {
+            c if c.is_whitespace() => continue,
+            c => {
                 let mut word = c.to_string();
-                while let Some(&next) = chars.peek() {
-                    if next.is_whitespace() || RESERVED_CHARS.contains(next) {
-                        break;
-                    }
-                    word.push(chars.next().unwrap());
-                    index += 1;
-                }
+                word.push_str(&parse_until_separator(&mut chars, &mut index));
                 tokens.push(Token::Word(word));
             }
         }
