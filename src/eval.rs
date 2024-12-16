@@ -2,10 +2,14 @@ use std::io::Write;
 use std::env;
 use std::process;
 use std::process::Stdio;
+use std::fs::OpenOptions;
 
 use crate::cmdoutput::CmdOutput;
+use crate::command::Redirection;
 use crate::core::{ShellError, ShellState};
 use crate::command::{self, parse_tokens};
+use crate::io::FSError;
+use crate::tokenizer::RedirectionType;
 use crate::tokenizer::{Token, tokenize};
 use crate::builtins::match_builtin;
 
@@ -56,7 +60,7 @@ pub fn expand_tokens(state: &mut ShellState, tokens: &mut Vec<Token>) {
 
 // Execution
 
-pub fn run_command(state: &mut ShellState, command: &Vec<command::Command>) -> Result<CmdOutput, ShellError> {
+pub fn run_command(state: &mut ShellState, command: &Vec<command::Command>) -> Result<Option<CmdOutput>, ShellError> {
     let mut output: Option<CmdOutput> = None;
     for step in command {
         let cmd = &step.words[0];
@@ -70,7 +74,9 @@ pub fn run_command(state: &mut ShellState, command: &Vec<command::Command>) -> R
                     ShellError::NoBuiltin => {
                         match execute(cmd, &args, &output) {
                             Ok(out) => {
-                                output = Some(out);
+                                if !handle_redirections(&step.redirections, &out) {
+                                    output = Some(out);
+                                }
                             },
                             Err(err) => return Err(err)
                         }
@@ -80,7 +86,32 @@ pub fn run_command(state: &mut ShellState, command: &Vec<command::Command>) -> R
             }
         }
     }
-    return Ok(output.unwrap());
+    return Ok(output);
+}
+
+fn handle_redirections(redirections: &Vec<Redirection>, output: &CmdOutput) -> bool {
+    for (index, redirection) in redirections.iter().enumerate() {
+        // Create or open the file based on the redirection type
+        let mut file = match redirection.rtype {
+            RedirectionType::Output => {
+                OpenOptions::new().create(true).write(true).truncate(true).open(&redirection.target).unwrap()
+            }
+            RedirectionType::Append => {
+                // Append to the file
+                OpenOptions::new().create(true).write(true).append(true).open(&redirection.target).unwrap()
+            }
+            _ => OpenOptions::new().create(true).write(true).append(true).open(&redirection.target).unwrap()
+        };
+
+        // If this is the last redirection, write content to the file
+        if index == redirections.len() - 1 {
+            if let Some(stdout) = &output.stdout {
+                file.write_all(&stdout).unwrap();
+            }
+            return true;
+        }
+    }
+    return false;
 }
 
 pub fn execute(command: &str, args: &Vec<String>, input: &Option<CmdOutput>) -> Result<CmdOutput, ShellError> {
@@ -137,7 +168,11 @@ pub fn eval_expr(state: &mut ShellState, expr: &String) -> Result<Option<CmdOutp
                         let mut output = CmdOutput::new();
                         for cmd in commands {
                             match run_command(state, &cmd) {
-                                Ok(out) => output.combine(&out),
+                                Ok(cmdout) => {
+                                    if let Some(out) = cmdout {
+                                        output.combine(&out);
+                                    }
+                                }
                                 Err(error) => return Err(error)
                             }
                         }

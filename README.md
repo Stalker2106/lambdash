@@ -25,7 +25,7 @@ This shell is currently **not stable** and is intended primarily for **education
 
 #### To be implemented
 
-- <<>> Input/output redirection
+- <,<< Input redirection
 - Character escaping
 - Background
 - (()) arithmetic expressions
