@@ -1,156 +1,146 @@
-
+use std::io::Write;
 use std::env;
-use std::process::{Command, ExitStatus, Stdio};
-use std::os::unix::process::ExitStatusExt;
+use std::process;
+use std::process::Stdio;
 
 use crate::cmdoutput::CmdOutput;
 use crate::core::{ShellError, ShellState};
+use crate::command::{self, parse_tokens};
 use crate::tokenizer::{Token, tokenize};
 use crate::builtins::match_builtin;
 
 #[derive(Debug)]
 pub struct ExecutionError {
-    pub status: ExitStatus,
+    pub status: i32,
     pub details: String
 }
 
 impl ExecutionError {
     pub fn new(code: i32, msg: String) -> ExecutionError {
-        ExecutionError{status: ExitStatus::from_raw(code), details: msg.to_string()}
+        ExecutionError{status: code, details: msg.to_string()}
     }
 }
 
-pub fn expand_variable(state: &mut ShellState, var: &str) -> Option<String> {
-    match var {
-        "?" => match state.status.code() {
-            Some(code) => Some(format!("{}", code)),
-            None => Some("".to_string())
+// Expanding
+
+pub fn expand_variable(state: &mut ShellState, var_name: &str) -> String {
+    match var_name {
+        "?" => format!("{}", state.status),
+        _ => {
+            match env::var(var_name) {
+                Ok(var_value) => var_value,
+                Err(_) => format!("${}", var_name)
+            }
         }
-        _ => env::var(var).ok(),
     }
 }
 
 pub fn expand_tokens(state: &mut ShellState, tokens: &mut Vec<Token>) {
-    let mut i = 0;
-    while i < tokens.len() {
-        match &tokens[i] {
-            Token::Variable(token_value) => {
-                match expand_variable(state, &token_value) {
-                    Some(value) => {
-                        tokens[i] = Token::Word(value.to_string());
-                    },
-                    None => {
-                        tokens.remove(i);
-                        continue; // Skip incrementing since we removed
-                    }
-                }
-            },
-            _ => ()
-        }
-        i += 1;
-    }
-}
-
-pub fn run_command(state: &mut ShellState, command: &Vec<&str>, input: &Option<CmdOutput>) -> Result<Option<CmdOutput>, ShellError> {
-    let args = command.iter().skip(1).copied().collect::<Vec<&str>>();
-    match match_builtin(state, &command[0], &args, &input) {
-        Ok(builtin_out) => {
-            if builtin_out.is_some() {
-                return Ok(builtin_out);
-            } else {
-                match execute(command[0], &args, &input) {
-                    Ok(output) => return Ok(output),
-                    Err(err) => return Err(err)
-                }
-            }
-        },
-        Err(error) => return Err(error)
-    }
-}
-
-pub fn eval_tokens(state: &mut ShellState, tokens: &Vec<Token>) -> Result<Option<CmdOutput>, ShellError> {
-    let mut command: Vec<&str> = Vec::new();
-    let mut action: Option<&Token> = None;
-    let mut output: Option<CmdOutput> = None;
-    let mut token_it = tokens.iter().peekable();
-    while let Some(token) = token_it.next() {
+    // Iterate over each token in the vector
+    for token in tokens.iter_mut() {
         match token {
-            Token::Word(w) => {
-                command.push(w.as_str());
-                if !matches!(token_it.peek(), Some(Token::Word(_))) {
-                    match run_command(state, &command, &output) {
-                        Ok(res) => output = res,
-                        Err(err) => return Err(err)
-                    }
-                    command.clear();
-                    action = None;
-                }
-            },
-            Token::Redirection(r) => {
-                if action.is_some() {
-                    return Err(ShellError::Execution(ExecutionError::new(123, format!("invalid redirection {}", r))));
-                }
-                action = Some(&token);
+            Token::Variable(var_name) => {
+                *token = Token::Word(expand_variable(state, var_name));
             }
-            Token::Pipe => {
-                if action.is_some() {
-                    return Err(ShellError::Execution(ExecutionError::new(127, format!("invalid pipe"))));
-                }
-                action = Some(&token);
-            }
-            _ => continue
+            _ => {}
         }
     }
-    return Ok(output);
 }
+
+// Execution
+
+pub fn run_command(state: &mut ShellState, command: &Vec<command::Command>) -> Result<CmdOutput, ShellError> {
+    let mut output: Option<CmdOutput> = None;
+    for step in command {
+        let cmd = &step.words[0];
+        let args = step.words[1..].to_vec();
+        match match_builtin(state, cmd, &args, &output) {
+            Ok(out) => {
+                output = Some(out);
+            }
+            Err(error) => {
+                match error {
+                    ShellError::NoBuiltin => {
+                        match execute(cmd, &args, &output) {
+                            Ok(out) => {
+                                output = Some(out);
+                            },
+                            Err(err) => return Err(err)
+                        }
+                    },
+                    error => return Err(error)
+                }
+            }
+        }
+    }
+    return Ok(output.unwrap());
+}
+
+pub fn execute(command: &str, args: &Vec<String>, input: &Option<CmdOutput>) -> Result<CmdOutput, ShellError> {
+    let mut process = process::Command::new(command);
+    process.args(args)
+        .stdin(Stdio::piped()) // Allow piping input
+        .stdout(Stdio::piped()) // Capture stdout
+        .stderr(Stdio::piped()); // Capture stderr
+
+    // Spawn the process
+    let mut child = match process.spawn() {
+        Ok(child) => child,
+        Err(_error) => {
+            return Err(ShellError::Execution(ExecutionError::new(
+                127,
+                format!("{}: command not found", command),
+            )))
+        }
+    };
+
+    // If there's input, write it to the child's stdin
+    if let Some(input_data) = input {
+        if let Some(input_stdout) = &input_data.stdout {
+            if let Some(stdin) = child.stdin.as_mut() {
+                if let Err(e) = stdin.write_all(&input_stdout) {
+                    return Err(ShellError::Execution(ExecutionError::new(
+                        1,
+                        format!("Failed to write to stdin: {}", e),
+                    )));
+                }
+            }
+        }
+    }
+
+    // Wait for the child process to complete and capture the output
+    match child.wait_with_output() {
+        Ok(output) => Ok(CmdOutput::from_output(&output)),
+        Err(e) => Err(ShellError::Execution(ExecutionError::new(
+            1,
+            format!("Failed to execute command: {}", e),
+        ))),
+    }
+}
+
+// Eval
 
 pub fn eval_expr(state: &mut ShellState, expr: &String) -> Result<Option<CmdOutput>, ShellError> {
     match tokenize(expr) {
         Ok(mut tokens) => {
             if tokens.len() > 0 {
                 expand_tokens(state, &mut tokens);
-                return eval_tokens(state, &tokens)
+                match parse_tokens(&tokens) {
+                    Ok(commands) => {
+                        let mut output = CmdOutput::new();
+                        for cmd in commands {
+                            match run_command(state, &cmd) {
+                                Ok(out) => output.combine(&out),
+                                Err(error) => return Err(error)
+                            }
+                        }
+                        return Ok(Some(output));
+                    },
+                    Err(error) => return Err(ShellError::Execution(ExecutionError::new(1, format!("invalid syntax"))))
+                }
             }
             return Ok(None)
         },
         Err(error) => return Err(ShellError::Tokenization(error))
     };
-}
-
-pub fn execute(command: &str, args: &Vec<&str>, input: &Option<CmdOutput>) -> Result<Option<CmdOutput>, ShellError> {
-    let mut cmd = Command::new(command);
-    cmd.args(args)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
-
-    // Handle piping input into stdin if `input` is Some
-    if let Some(input_data) = input {
-        if let Some(stdin_data) = &input_data.stdout {
-            cmd.stdin(Stdio::piped());
-            let mut child = cmd.spawn().map_err(|_error| {
-                ShellError::Execution(ExecutionError::new(127, format!("{}: command not found", command)))
-            })?;
-
-            if let Some(mut stdin) = child.stdin.take() {
-                use std::io::Write;
-                stdin.write_all(stdin_data).map_err(|_error| {
-                    ShellError::Execution(ExecutionError::new(1, "Failed to write to stdin".to_string()))
-                })?;
-            }
-
-            let output = child.wait_with_output().map_err(|_error| {
-                ShellError::Execution(ExecutionError::new(1, "Failed to read command output".to_string()))
-            })?;
-
-            return Ok(Some(CmdOutput::from_output(&output)));
-        }
-    }
-    // If no input, execute the command normally
-    match cmd.output() {
-        Ok(output) => Ok(Some(CmdOutput::from_output(&output))),
-        Err(_error) => Err(ShellError::Execution(ExecutionError::new(
-            127,
-            format!("{}: command not found", command),
-        ))),
-    }
 }

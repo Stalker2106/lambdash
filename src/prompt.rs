@@ -1,5 +1,3 @@
-use crossterm::cursor;
-
 pub struct Prompt {
     input_stash: Option<String>,
     input: String,

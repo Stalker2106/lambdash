@@ -1,7 +1,5 @@
 use std::env;
 use std::io::Cursor;
-use std::process::ExitStatus;
-use std::os::unix::process::ExitStatusExt;
 
 use crossterm::style::Print;
 use crossterm::QueueableCommand;
@@ -10,22 +8,22 @@ use crate::cmdoutput::CmdOutput;
 use crate::core::{ShellState, ShellError};
 use crate::eval::{execute, ExecutionError};
 
-pub fn match_builtin(state: &mut ShellState, command: &str, args: &Vec<&str>, input: &Option<CmdOutput>) -> Result<Option<CmdOutput>, ShellError> {
+pub fn match_builtin(state: &mut ShellState, command: &str, args: &Vec<String>, input: &Option<CmdOutput>) -> Result<CmdOutput, ShellError> {
     match command {
         "exit" => cmd_exit(),
         "alias" => cmd_alias(state, args),
         "cd" => cmd_cd(args),
         "pwd" => cmd_pwd(),
         "export" => cmd_export(args, input),
-        _ => Ok(None)
+        _ => Err(ShellError::NoBuiltin)
     }
 }
 
-fn cmd_exit() -> Result<Option<CmdOutput>, ShellError> {
-    return Err(ShellError::ExitRequest());
+fn cmd_exit() -> Result<CmdOutput, ShellError> {
+    return Err(ShellError::ExitRequest);
 }
 
-fn cmd_alias(state: &mut ShellState, args: &Vec<&str>) -> Result<Option<CmdOutput>, ShellError> {
+fn cmd_alias(state: &mut ShellState, args: &Vec<String>) -> Result<CmdOutput, ShellError> {
     let mut output = Vec::new();
     let mut cursor = Cursor::new(&mut output);
     match args.len() {
@@ -44,10 +42,10 @@ fn cmd_alias(state: &mut ShellState, args: &Vec<&str>) -> Result<Option<CmdOutpu
             }
         }
     }
-    return Ok(Some(CmdOutput{status: ExitStatus::from_raw(0), stdout: Some(output), stderr: None }))
+    return Ok(CmdOutput{status: 0, stdout: Some(output), stderr: None });
 }
 
-fn cmd_cd(args: &Vec<&str>) -> Result<Option<CmdOutput>, ShellError> {
+fn cmd_cd(args: &Vec<String>) -> Result<CmdOutput, ShellError> {
     match args.len() {
         0 => {
             env::set_var("OLDPWD", env::current_dir().unwrap());
@@ -60,7 +58,7 @@ fn cmd_cd(args: &Vec<&str>) -> Result<Option<CmdOutput>, ShellError> {
                 env::set_var("OLDPWD", oldpwd);
             } else {
                 env::set_var("OLDPWD", env::current_dir().unwrap());
-                env::set_current_dir(args[0]).unwrap();
+                env::set_current_dir(&args[0]).unwrap();
             }
         },
         _ => {
@@ -68,18 +66,18 @@ fn cmd_cd(args: &Vec<&str>) -> Result<Option<CmdOutput>, ShellError> {
         }
     }
     env::set_var("PWD", env::current_dir().unwrap());
-    return Ok(Some(CmdOutput::from_status(ExitStatus::from_raw(0))));
+    return Ok(CmdOutput::from_status(0));
 }
 
-fn cmd_pwd() -> Result<Option<CmdOutput>, ShellError> {
-    let mut output = CmdOutput::from_status(ExitStatus::from_raw(0));
+fn cmd_pwd() -> Result<CmdOutput, ShellError> {
+    let mut output = CmdOutput::from_status(0);
     let mut env_output = env::current_dir().unwrap().to_string_lossy().as_bytes().to_vec();
     env_output.push(b'\n');
     output.stdout = Some(env_output);
-    return Ok(Some(output));
+    return Ok(output);
 }
 
-fn cmd_export(args: &Vec<&str>, input: &Option<CmdOutput>) -> Result<Option<CmdOutput>, ShellError> {
+fn cmd_export(args: &Vec<String>, input: &Option<CmdOutput>) -> Result<CmdOutput, ShellError> {
     if args.len() <= 0 {
         return execute("env", &Vec::new(), input);
     }
@@ -87,5 +85,5 @@ fn cmd_export(args: &Vec<&str>, input: &Option<CmdOutput>) -> Result<Option<CmdO
         let kv = arg.split('=').collect::<Vec<&str>>();
         env::set_var(kv[0].to_string(), kv[1].to_string());
     }
-    return Ok(Some(CmdOutput::from_status(ExitStatus::from_raw(0))));
+    return Ok(CmdOutput::from_status(0));
 }

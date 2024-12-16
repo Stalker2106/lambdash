@@ -1,14 +1,30 @@
 use std::iter::Peekable;
 
+#[derive(Debug, PartialEq, Clone)]
+pub enum RedirectionType {
+    Input,  // >
+    Output, // <
+    Append, // >>
+    Heredoc // <<
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub enum ConditionType {
+    And, // &&
+    Or,  // ||
+}
+
+#[derive(Clone)]
 pub enum Token {
     Word(String),
-    Pipe,         // |
-    Background,   // &
-    Subcommand(Vec<Token>), //() or ``
-    Redirection(String), // >, <, >>, <<
-    Variable(String), // $VAR or ${VAR}
-    Operator(String), // && or ||
-    CommandSeparator,   //;
+    Pipe,                         // |
+    Background,                   // &
+    Negate,                       // !
+    Subexpression(Vec<Token>),    // () or ``
+    Redirection(RedirectionType), // >, <, >>, <<
+    Variable(String),             // $VAR or ${VAR}
+    Operator(ConditionType),      // && or ||
+    CommandSeparator,             // ;
 }
 
 const RESERVED_CHARS: &str = "\"';|&$<>";
@@ -60,16 +76,17 @@ pub fn tokenize(expr: &String) -> Result<Vec<Token>, TokenizationError> {
                 if chars.peek() == Some(&'&') {
                     chars.next();
                     index += 1;
-                    tokens.push(Token::Operator("||".to_string()));
+                    tokens.push(Token::Operator(ConditionType::Or));
                 } else {
                     tokens.push(Token::Pipe);
                 }
             },
+            '!' => tokens.push(Token::Negate),
             '&' => {
                 if chars.peek() == Some(&'&') {
                     chars.next();
                     index += 1;
-                    tokens.push(Token::Operator("&&".to_string()));
+                    tokens.push(Token::Operator(ConditionType::And));
                 } else {
                     tokens.push(Token::Background);
                 }
@@ -78,18 +95,18 @@ pub fn tokenize(expr: &String) -> Result<Vec<Token>, TokenizationError> {
                 if chars.peek() == Some(&'>') {
                     chars.next();
                     index += 1;
-                    tokens.push(Token::Redirection(">>".to_string()));
+                    tokens.push(Token::Redirection(RedirectionType::Append));
                 } else {
-                    tokens.push(Token::Redirection(">".to_string()));
+                    tokens.push(Token::Redirection(RedirectionType::Output));
                 }
             },
             '<' => {
-                if chars.peek() == Some(&'>') {
+                if chars.peek() == Some(&'<') {
                     chars.next();
                     index += 1;
-                    tokens.push(Token::Redirection("<<".to_string()));
+                    tokens.push(Token::Redirection(RedirectionType::Input));
                 } else {
-                    tokens.push(Token::Redirection("<".to_string()));
+                    tokens.push(Token::Redirection(RedirectionType::Heredoc));
                 }
             },
             '$' => {
@@ -110,7 +127,7 @@ pub fn tokenize(expr: &String) -> Result<Vec<Token>, TokenizationError> {
             '`' | '(' => match parse_until_next(&mut chars, &mut index, if c == '(' { ')' } else { c }) {
                 Ok(content) => {
                     match tokenize(&content) {
-                        Ok(subtokens) => tokens.push(Token::Subcommand(subtokens)),
+                        Ok(subtokens) => tokens.push(Token::Subexpression(subtokens)),
                         Err(error) => return Err(error)
                     }
                 },

@@ -1,6 +1,3 @@
-
-use std::process::ExitStatus;
-use std::os::unix::process::ExitStatusExt;
 use std::io::Cursor;
 
 use crossterm::style::{Color, Print, ResetColor, SetForegroundColor};
@@ -90,12 +87,8 @@ fn render_ps_tokens(state: &mut ShellState, tokens: &[Token]) -> CmdOutput {
                 cursor.queue(Print(text)).unwrap();
             },
             Token::Variable(var_name) => {
-                if let Some(value) = expand_variable(state, var_name) {
-                    cursor.queue(Print(value)).unwrap();
-                } else {
-                    cursor.queue(Print(format!("${}", var_name))).unwrap();
-                }
-            }
+                cursor.queue(Print(expand_variable(state, var_name))).unwrap();
+            },
             Token::Tag { name, value } => {
                 match name.as_str() {
                     "color" => {
@@ -121,7 +114,7 @@ fn render_ps_tokens(state: &mut ShellState, tokens: &[Token]) -> CmdOutput {
             }
         }
     }
-    return CmdOutput{status: ExitStatus::from_raw(0), stdout: Some(output), stderr: None};
+    return CmdOutput{status: 0, stdout: Some(output), stderr: None};
 }
 
 pub fn eval_ps(state: &mut ShellState, expr: &str) -> CmdOutput {
