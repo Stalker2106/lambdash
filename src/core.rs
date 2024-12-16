@@ -1,6 +1,4 @@
 use std::io::Write;
-use std::process::ExitStatus;
-use std::os::unix::process::ExitStatusExt;
 use std::collections::HashMap;
 
 use crate::config::{ShellConfig, load};
@@ -28,7 +26,7 @@ impl From<TokenizationError> for ShellError {
 }
 
 pub struct ShellState<'a> {
-    pub status: ExitStatus,
+    pub status: i32,
     pub ps1pos: (u16, u16),
     pub aliases: HashMap<String, String>,
     pub config: ShellConfig,
@@ -39,7 +37,7 @@ pub struct ShellState<'a> {
 impl<'a> ShellState<'a> {
     pub fn new(out: &'a mut dyn Write, err: &'a mut dyn Write) -> ShellState<'a> {
         ShellState {
-            status: ExitStatus::from_raw(0),
+            status: 0,
             ps1pos: (0,0),
             aliases: HashMap::new(),
             config: load(),

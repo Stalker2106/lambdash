@@ -1,6 +1,3 @@
-
-use std::process::ExitStatus;
-use std::os::unix::process::ExitStatusExt;
 use std::io::Cursor;
 
 use crossterm::style::{Color, Print, ResetColor, SetForegroundColor};
@@ -117,7 +114,7 @@ fn render_ps_tokens(state: &mut ShellState, tokens: &[Token]) -> CmdOutput {
             }
         }
     }
-    return CmdOutput{status: ExitStatus::from_raw(0), stdout: Some(output), stderr: None};
+    return CmdOutput{status: 0, stdout: Some(output), stderr: None};
 }
 
 pub fn eval_ps(state: &mut ShellState, expr: &str) -> CmdOutput {

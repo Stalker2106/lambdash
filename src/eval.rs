@@ -1,8 +1,7 @@
 
 use std::env;
 use std::process;
-use std::process::{ExitStatus, Stdio};
-use std::os::unix::process::ExitStatusExt;
+use std::process::Stdio;
 
 use crate::cmdoutput::CmdOutput;
 use crate::core::{ShellError, ShellState};
@@ -12,13 +11,13 @@ use crate::builtins::match_builtin;
 
 #[derive(Debug)]
 pub struct ExecutionError {
-    pub status: ExitStatus,
+    pub status: i32,
     pub details: String
 }
 
 impl ExecutionError {
     pub fn new(code: i32, msg: String) -> ExecutionError {
-        ExecutionError{status: ExitStatus::from_raw(code), details: msg.to_string()}
+        ExecutionError{status: code, details: msg.to_string()}
     }
 }
 
@@ -26,10 +25,7 @@ impl ExecutionError {
 
 pub fn expand_variable(state: &mut ShellState, var_name: &str) -> String {
     match var_name {
-        "?" => match state.status.code() {
-            Some(code) => format!("{}", code),
-            None => "".to_string()
-        }
+        "?" => format!("{}", state.status),
         _ => {
             match env::var(var_name) {
                 Ok(var_value) => var_value,
@@ -54,18 +50,20 @@ pub fn expand_tokens(state: &mut ShellState, tokens: &mut Vec<Token>) {
 // Execution
 
 pub fn run_command(state: &mut ShellState, command: &Vec<command::Command>) -> Result<CmdOutput, ShellError> {
-    let mut output = CmdOutput::new();
+    let mut output: CmdOutput = CmdOutput::new();
+    let mut pipe = false;
     for step in command {
         let cmd = &step.words[0];
         let args = step.words[1..].to_vec();
-        match match_builtin(state, cmd, &args) {
+        let input = if pipe { Some(output.clone()) } else { None };
+        match match_builtin(state, cmd, &args, &input) {
             Ok(out) => {
-                output.combine(&out)
+                output.combine(&out);
             }
             Err(error) => {
                 match error {
                     ShellError::NoBuiltin => {
-                        match execute(cmd, &args) {
+                        match execute(cmd, &args, &input) {
                             Ok(out) => {
                                 output.combine(&out);
                             },
@@ -76,11 +74,12 @@ pub fn run_command(state: &mut ShellState, command: &Vec<command::Command>) -> R
                 }
             }
         }
+        pipe = true;
     }
-    Ok(output)
+    return Ok(output);
 }
 
-pub fn execute(command: &str, args: &Vec<String>) -> Result<CmdOutput, ShellError> {
+pub fn execute(command: &str, args: &Vec<String>, input: &Option<CmdOutput>) -> Result<CmdOutput, ShellError> {
     let mut process = process::Command::new(command);
     process.args(args)
         .stdout(Stdio::piped())

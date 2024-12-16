@@ -1,7 +1,5 @@
 use std::env;
 use std::io::Cursor;
-use std::process::ExitStatus;
-use std::os::unix::process::ExitStatusExt;
 
 use crossterm::style::Print;
 use crossterm::QueueableCommand;
@@ -10,13 +8,13 @@ use crate::cmdoutput::CmdOutput;
 use crate::core::{ShellState, ShellError};
 use crate::eval::{execute, ExecutionError};
 
-pub fn match_builtin(state: &mut ShellState, command: &str, args: &Vec<String>) -> Result<CmdOutput, ShellError> {
+pub fn match_builtin(state: &mut ShellState, command: &str, args: &Vec<String>, input: &Option<CmdOutput>) -> Result<CmdOutput, ShellError> {
     match command {
         "exit" => cmd_exit(),
         "alias" => cmd_alias(state, args),
         "cd" => cmd_cd(args),
         "pwd" => cmd_pwd(),
-        "export" => cmd_export(args),
+        "export" => cmd_export(args, input),
         _ => Err(ShellError::NoBuiltin)
     }
 }
@@ -44,7 +42,7 @@ fn cmd_alias(state: &mut ShellState, args: &Vec<String>) -> Result<CmdOutput, Sh
             }
         }
     }
-    return Ok(CmdOutput{status: ExitStatus::from_raw(0), stdout: Some(output), stderr: None });
+    return Ok(CmdOutput{status: 0, stdout: Some(output), stderr: None });
 }
 
 fn cmd_cd(args: &Vec<String>) -> Result<CmdOutput, ShellError> {
@@ -68,24 +66,24 @@ fn cmd_cd(args: &Vec<String>) -> Result<CmdOutput, ShellError> {
         }
     }
     env::set_var("PWD", env::current_dir().unwrap());
-    return Ok(CmdOutput::from_status(ExitStatus::from_raw(0)));
+    return Ok(CmdOutput::from_status(0));
 }
 
 fn cmd_pwd() -> Result<CmdOutput, ShellError> {
-    let mut output = CmdOutput::from_status(ExitStatus::from_raw(0));
+    let mut output = CmdOutput::from_status(0);
     let mut env_output = env::current_dir().unwrap().to_string_lossy().as_bytes().to_vec();
     env_output.push(b'\n');
     output.stdout = Some(env_output);
     return Ok(output);
 }
 
-fn cmd_export(args: &Vec<String>) -> Result<CmdOutput, ShellError> {
+fn cmd_export(args: &Vec<String>, input: &Option<CmdOutput>) -> Result<CmdOutput, ShellError> {
     if args.len() <= 0 {
-        return execute("env", &Vec::new());
+        return execute("env", &Vec::new(), input);
     }
     for arg in args {
         let kv = arg.split('=').collect::<Vec<&str>>();
         env::set_var(kv[0].to_string(), kv[1].to_string());
     }
-    return Ok(CmdOutput::from_status(ExitStatus::from_raw(0)));
+    return Ok(CmdOutput::from_status(0));
 }

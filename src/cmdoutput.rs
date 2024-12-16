@@ -1,9 +1,8 @@
-use std::process::{Output, ExitStatus};
-use std::os::unix::process::ExitStatusExt;
+use std::process::Output;
 
 #[derive(Clone)]
 pub struct CmdOutput {
-    pub status: ExitStatus,
+    pub status: i32,
     pub stdout: Option<Vec<u8>>,
     pub stderr: Option<Vec<u8>>
 }
@@ -11,22 +10,26 @@ pub struct CmdOutput {
 impl CmdOutput {
     pub fn new() -> CmdOutput {
         return CmdOutput{
-            status: ExitStatus::from_raw(0),
+            status: 0,
             stdout: Some(Vec::new()),
             stderr: None
         }
     }
     pub fn from_output(out: &Output) -> CmdOutput {
+        let mut code = 0;
+        if let Some(exitstatus) = out.status.code() {
+            code = exitstatus;
+        }
         return CmdOutput{
-            status: out.status,
+            status: code,
             stdout: Some(out.stdout.clone()),
             stderr: Some(out.stderr.clone())
         }
     }
 
-    pub fn from_status(code: ExitStatus) -> CmdOutput {
+    pub fn from_status(exitcode: i32) -> CmdOutput {
         return CmdOutput{
-            status: code,
+            status: exitcode,
             stdout: None,
             stderr: None
         }
