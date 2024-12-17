@@ -5,8 +5,8 @@ use crossterm::QueueableCommand;
 
 use crate::cmdoutput::CmdOutput;
 use crate::core::ShellState;
-use crate::eval::expand_variable;
 use crate::eval::eval_expr;
+use crate::expand::expand_variable;
 use crate::tokenizer::parse_identifier;
 
 enum Token {
@@ -42,8 +42,13 @@ fn tokenize_ps(input: &str) -> Vec<Token> {
                 }
             }
             '$' => {
-                let var_name: String = parse_identifier(&mut chars, &mut index);
-                tokens.push(Token::Variable(var_name));
+                if chars.peek() == Some(&'?') {
+                    chars.next();
+                    tokens.push(Token::Variable("?".to_string()));
+                } else {
+                    let var_name: String = parse_identifier(&mut chars, &mut index);
+                    tokens.push(Token::Variable(var_name));
+                }
             }
             _ => {
                 // Collect text until we reach another '[' or '$'

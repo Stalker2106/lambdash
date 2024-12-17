@@ -6,7 +6,7 @@ pub enum FSError {
     IOError
 }
 
-fn open_file(path: &str, truncate: bool) -> Result<File, FSError> {
+pub fn open_file(path: &str, truncate: bool) -> Result<File, FSError> {
     let mut options = OpenOptions::new();
     options.write(true).create(true);
     if truncate {
@@ -22,10 +22,10 @@ fn open_file(path: &str, truncate: bool) -> Result<File, FSError> {
 
 // Out
 
-fn output_to_file(output: &Vec<u8>, path: &str, truncate: bool) -> Result<(), FSError> {
+pub fn write_output_to_file(output: &Vec<u8>, path: &str, truncate: bool) -> Result<(), FSError> {
     match open_file(path, truncate) {
         Ok(mut file) => {
-            file.write_all(output);
+            file.write_all(output).unwrap();
             return Ok(())
         },
         Err(error) => Err(error)
@@ -34,13 +34,13 @@ fn output_to_file(output: &Vec<u8>, path: &str, truncate: bool) -> Result<(), FS
 
 // In
 
-fn file_as_input(path: &str) -> Result<Vec<u8>, FSError> {
+pub fn read_file_as_input(path: &str) -> Result<Vec<u8>, FSError> {
     match File::open(path) {
         Ok(mut file) => {
             let mut buffer: Vec<u8> = Vec::new();
             match file.read_to_end(&mut buffer) {
                 Ok(_) => return Ok(buffer),
-                Err(error) => Err(FSError::IOError)
+                Err(_) => Err(FSError::IOError)
             }
         },
         Err(_) => Err(FSError::IOError)

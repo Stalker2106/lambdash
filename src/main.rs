@@ -18,8 +18,11 @@ use crossterm::{
     QueueableCommand
 };
 
-mod fsio;
 mod core;
+mod fsio;
+mod redirections;
+mod expand;
+mod execute;
 mod expression;
 mod config;
 mod tokenizer;

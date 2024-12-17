@@ -9,6 +9,8 @@
 A common shell implementation written in Rust.
 This project aims to explore how shells work and implement common shell functionality in Rust.
 
+![](https://github.com/stalker2106/lambdash/media/demo.gif)
+
 ### ⚠️ **WIP (Work In Progress)**
 
 This shell is currently **not stable** and is intended primarily for **educational purposes**. It may not work as expected, and many features are still in development.
@@ -17,15 +19,14 @@ This shell is currently **not stable** and is intended primarily for **education
 
 - Shell customization
 - Variables expanding
-- Built-in commands (e.g., `export`, `cd`, `alias`, etc.)
-- UTF-8, Emoji, Multiline input
+- Built-in commands (`history`, `export`, `cd`, `alias`, etc.)
+- UTF-8, Emojis✨ , Multiline input
 - History
 - Pipe output
 - Input/output redirections
 
 #### To be implemented
 
-- Character escaping
 - Background
 - (()) arithmetic expressions
 - *,? globs

@@ -34,9 +34,4 @@ impl CmdOutput {
             stderr: Vec::new()
         }
     }
-
-    pub fn combine(&mut self, out: CmdOutput) {
-        self.stdout.extend(out.stdout);
-        self.stderr.extend(out.stderr);
-    }
 }

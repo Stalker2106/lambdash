@@ -2,7 +2,7 @@ use std::vec::Vec;
 use core::slice::Iter;
 use std::iter::Peekable;
 
-use crate::tokenizer::{RedirectionType, Token};
+use crate::tokenizer::{ConditionType, RedirectionType, Token};
 
 #[derive(Debug)]
 pub enum ParseError {
@@ -16,6 +16,12 @@ pub struct Redirection {
     pub target: String
 }
 
+pub enum ExpressionGroupType {
+    Single,
+    Pipeline,
+    Or,
+    And
+}
 
 pub struct Expression {
     pub words: Vec<String>,
@@ -24,16 +30,24 @@ pub struct Expression {
     pub background: bool
 }
 
+pub struct ExpressionGroup {
+    pub expressions: Vec<Expression>,
+    pub gtype: ExpressionGroupType
+}
 
-pub fn parse_command(tokens_iter: &mut Peekable<Iter<Token>>) -> Result<Vec<Expression>, ParseError>  {
-    let mut commands: Vec<Expression> = Vec::new();
+
+pub fn parse_command(tokens_iter: &mut Peekable<Iter<Token>>) -> Result<ExpressionGroup, ParseError>  {
+    let mut group: ExpressionGroup = ExpressionGroup{
+        expressions: Vec::new(),
+        gtype: ExpressionGroupType::Single
+    };
     while let Some(token) = tokens_iter.next() {
         match token {
             Token::Word(word) => {
-                if let Some(cmd) = commands.last_mut() {
+                if let Some(cmd) = group.expressions.last_mut() {
                     cmd.words.push(word.clone());
                 } else {
-                    commands.push(Expression{
+                    group.expressions.push(Expression{
                         words: vec![word.clone()],
                         inputs: Vec::new(),
                         outputs: Vec::new(),
@@ -42,12 +56,12 @@ pub fn parse_command(tokens_iter: &mut Peekable<Iter<Token>>) -> Result<Vec<Expr
                 }
             },
             Token::Pipe => {
-                if let Some(_) = commands.last() {
+                if let Some(_) = group.expressions.last() {
                     if let Some(next_token) = tokens_iter.next() {
                         match next_token {
                             Token::Word(word) => {
                                 // Insert new command
-                                commands.push(Expression{
+                                group.expressions.push(Expression{
                                     words: vec![word.clone()],
                                     inputs: Vec::new(),
                                     outputs: Vec::new(),
@@ -64,7 +78,7 @@ pub fn parse_command(tokens_iter: &mut Peekable<Iter<Token>>) -> Result<Vec<Expr
                 }
             },
             Token::Redirection(rtype) => {
-                if let Some(cmd) = commands.last_mut() {
+                if let Some(cmd) = group.expressions.last_mut() {
                     if let Some(next_token) = tokens_iter.next() {
                         match next_token {
                             Token::Word(word) => {
@@ -92,7 +106,7 @@ pub fn parse_command(tokens_iter: &mut Peekable<Iter<Token>>) -> Result<Vec<Expr
                 }
             },
             Token::Background => {
-                if let Some(cmd) = commands.last_mut() {
+                if let Some(cmd) = group.expressions.last_mut() {
                     cmd.background = true;
                     break;
                 } else {
@@ -101,29 +115,32 @@ pub fn parse_command(tokens_iter: &mut Peekable<Iter<Token>>) -> Result<Vec<Expr
             },
             Token::CommandSeparator => {
                 break;
+            },
+            Token::Operator(_op) => {
+                unimplemented!()
             }
             _ => {
                 println!("undefined token encountered");
             }
         }
     }
-    return Ok(commands);
+    return Ok(group);
 }
 
-pub fn parse_tokens(tokens: &Vec<Token>) -> Result<Vec<Vec<Expression>>, ParseError> {
-    let mut parsed_commands = Vec::new();
+pub fn parse_tokens(tokens: &Vec<Token>) -> Result<Vec<ExpressionGroup>, ParseError> {
+    let mut parsed_groups = Vec::new();
     let mut tokens_iter = tokens.iter().peekable();
 
     while let Some(_) = tokens_iter.peek() {
         match parse_command(&mut tokens_iter) {
-            Ok(cmds) => {
-                match cmds.len() {
+            Ok(group) => {
+                match group.expressions.len() {
                     0 => (),
-                    _ => parsed_commands.push(cmds)
+                    _ => parsed_groups.push(group)
                 }
             },
             Err(error) => return Err(error)
         }
     }
-    return Ok(parsed_commands);
+    return Ok(parsed_groups);
 }
