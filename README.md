@@ -9,7 +9,7 @@
 A common shell implementation written in Rust.
 This project aims to explore how shells work and implement common shell functionality in Rust.
 
-![](https://github.com/stalker2106/lambdash/media/demo.gif)
+![](media/demo.gif)
 
 ### ⚠️ **WIP (Work In Progress)**
 
