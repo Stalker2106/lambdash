@@ -108,6 +108,7 @@ pub fn tokenize(expr: &String) -> Result<Vec<Token>, TokenizationError> {
     while let Some(c) = chars.next() {
         index += 1;
         match c {
+            '#' => break,
             '|' => {
                 if chars.peek() == Some(&'&') {
                     chars.next();

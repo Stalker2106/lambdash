@@ -5,11 +5,11 @@ use crossterm::terminal::{Clear, ClearType};
 use crossterm::QueueableCommand;
 
 use crate::core::core::{ShellError, ShellState};
-use crate::rendering::columns::render_columns;
+use crate::rendering::autocomplete::render_options;
 
-struct AutocompleteState {
-    index: Option<usize>,
-    items: Vec<String>
+pub struct AutocompleteState {
+    pub index: Option<usize>,
+    pub items: Vec<String>
 }
 
 pub struct Autocomplete {
@@ -22,6 +22,7 @@ impl Autocomplete {
             state: None
         };
     }
+
     pub fn complete(&mut self, state: &mut ShellState, input: &str) -> Result<Option<String>, ShellError> {
         let mut res: Option<String> = None;
         if let Some(astate) = self.state.as_mut() {
@@ -38,7 +39,7 @@ impl Autocomplete {
             }
         } else {
             let mut res: Vec<String> = Vec::new();
-            if input.starts_with("cd") || input.contains('/') || input.contains('.') {
+            if input.starts_with("cd ") || input.contains('/') || input.contains('.') {
                 res = path_completion(&input);
             } else {
                 res = command_completion(&input);
@@ -72,7 +73,6 @@ impl Autocomplete {
 }
 
 fn command_completion(input: &str) -> Vec<String> {
-
     let mut available: Vec<String> = Vec::new();
     let mut searchpaths: Vec<String> = Vec::new();
     if let Ok(path) = env::var("PATH") {
@@ -100,7 +100,7 @@ fn command_completion(input: &str) -> Vec<String> {
 }
 
 fn print_options(state: &mut ShellState, astate: &AutocompleteState) -> Result<(), ShellError>  {
-    match render_columns(state, &astate.items, 0, state.termsize.1 / 2) {
+    match render_options(state, astate, state.termsize.1 / 2) {
         Ok(out) => {
             if let Ok(output) = String::from_utf8(out.stdout) {
                 state.stdout.queue(Print(output)).unwrap();
@@ -115,29 +115,39 @@ fn print_options(state: &mut ShellState, astate: &AutocompleteState) -> Result<(
     }
 }
 
-fn path_completion(input: &str) -> Vec<String> {
+fn path_completion(pinput: &str) -> Vec<String> {
+    use std::path::Path;
+    let input = pinput.strip_prefix("cd ").unwrap_or(pinput);
     let mut available = Vec::new();
-    let (dir_path, prefix) = if let Some(pos) = input.rfind('/') {
-        input.split_at(pos + 1)
+
+    // Split input into directory and prefix
+    let path = Path::new(input);
+    let dir = if path.is_dir() {
+        path
     } else {
-        ("./", input)
+        path.parent().unwrap_or(Path::new("."))
     };
-    if let Ok(entries) = fs::read_dir(dir_path) {
+    let prefix = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+
+    // Read entries in the directory
+    if let Ok(entries) = fs::read_dir(dir) {
         for entry in entries {
             if let Ok(entry) = entry {
                 let path = entry.path();
-                if path.is_dir() {
-                    if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
-                        if name.starts_with(prefix) {
-                            available.push(name.to_string());
-                        }
+
+                // Match entries that start with the prefix
+                if let Some(name) = path.file_name().and_then(|n| n.to_str()) {
+                    if name.starts_with(prefix) {
+                        available.push(name.to_string());
                     }
                 }
             }
         }
     }
+
+    // Sort the results
     available.sort();
-    return available;
+    available
 }
 
 fn custom_completion(input: &str) {

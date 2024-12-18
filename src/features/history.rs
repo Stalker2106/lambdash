@@ -55,8 +55,15 @@ impl History {
 
     pub fn persist(&self) {
         if let Some(config_path) = get_store_path() {
+            // Create the config dir if missing
+            if let Some(dir) = config_path.parent() {
+                if !dir.exists() {
+                    fs::create_dir_all(dir).unwrap();
+                }
+            }
+            // Write history
             let data = self.values.join("\n");
-            fs::write(&config_path, data);
+            fs::write(&config_path, data).unwrap();
         }
     }
 }

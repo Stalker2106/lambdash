@@ -1,5 +1,5 @@
 ```
-   __                 _         _             _     
+   __                 _         _             _
   / /  __ _ _ __ ___ | |__   __| | __ _   ___| |__
  / /  / _` | '_ ` _ \| '_ \ / _` |/ _` | / __| '_ \
 / /__| (_| | | | | | | |_) | (_| | (_| |_\__ \ | | |
@@ -21,9 +21,11 @@ This shell is currently **not stable** and is intended primarily for **education
 - Variables expanding
 - Built-in commands (`history`, `export`, `cd`, `alias`, etc.)
 - UTF-8, Emojis✨ , Multiline input
-- History
-- Pipe output
+- Smart autocomplete
+- Persistent history
+- Input/output Pipelines
 - Input/output redirections
+- Comments
 
 #### To be implemented
 
@@ -33,9 +35,7 @@ This shell is currently **not stable** and is intended primarily for **education
 - foo=bar runtime variables assignment
 - ! negate
 - [[]] Conditions
-- \# Comments
 - $(),`` Subcommands / Subshells
-- Autocomplete
 
 
 ### Getting Started

@@ -3,7 +3,6 @@ use std::{io::Write, process::{self, Child, Stdio}};
 use crate::core::{cmdoutput::CmdOutput, core::ShellError};
 use crate::eval::eval::ExecutionError;
 
-
 pub fn spawn_program(program: &str, args: &Vec<String>, input: &Option<Vec<u8>>) -> Result<Child, ShellError> {
   let mut process = process::Command::new(program);
   process.args(args)

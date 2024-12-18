@@ -1,3 +1,4 @@
+use std::env;
 use std::io::Write;
 use std::collections::HashMap;
 use std::process::Child;
@@ -55,4 +56,10 @@ impl<'a> ShellState<'a> {
             stderr: err,
         }
     }
+
+    pub fn update_size(&mut self, width: u16, height: u16) {
+        self.termsize = (width, height);
+        env::set_var("COLUMNS", width.to_string());
+        env::set_var("LINES", height.to_string());
+      }
 }
