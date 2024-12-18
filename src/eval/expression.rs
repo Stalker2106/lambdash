@@ -2,7 +2,7 @@ use std::vec::Vec;
 use core::slice::Iter;
 use std::iter::Peekable;
 
-use crate::tokenizer::{ConditionType, RedirectionType, Token};
+use crate::parser::tokenizer::{RedirectionType, Token};
 
 #[derive(Debug)]
 pub enum ParseError {

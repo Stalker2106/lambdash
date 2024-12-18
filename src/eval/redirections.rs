@@ -1,4 +1,6 @@
-use crate::{expression::Redirection, fsio::{open_file, read_file_as_input, write_output_to_file, FSError}, tokenizer::RedirectionType};
+use crate::eval::expression::Redirection;
+use crate::core::fsio::{open_file, read_file_as_input, write_output_to_file, FSError};
+use crate::parser::tokenizer::RedirectionType;
 
 
 pub fn handle_input_redirections(redirections: &Vec<Redirection>) -> Result<Option<Vec<u8>>, FSError> {

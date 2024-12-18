@@ -1,13 +1,13 @@
 use std::io::Cursor;
 
 use crossterm::style::{Color, Print, ResetColor, SetForegroundColor};
-use crossterm::QueueableCommand;
+use crate::crossterm::QueueableCommand;
 
-use crate::cmdoutput::CmdOutput;
-use crate::core::ShellState;
-use crate::eval::eval_expr;
-use crate::expand::expand_variable;
-use crate::tokenizer::parse_identifier;
+use crate::core::cmdoutput::CmdOutput;
+use crate::core::core::ShellState;
+use crate::eval::eval::eval_expr;
+use crate::parser::expand::expand_variable;
+use crate::parser::tokenizer::parse_identifier;
 
 enum Token {
     Text(String),

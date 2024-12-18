@@ -4,6 +4,7 @@ pub struct Prompt {
     input_stash: Option<String>,
     input: String,
     cursor: usize,
+    pub ps1: String,
 }
 
 pub enum CursorPosition {
@@ -18,11 +19,12 @@ pub enum CursorMovement {
 }
 
 impl Prompt {
-    pub fn new() -> Prompt {
+    pub fn new(ps1script: &str) -> Prompt {
         return Prompt{
             input_stash: None,
             input: String::new(),
-            cursor: 0
+            cursor: 0,
+            ps1: ps1script.to_string()
         }
     }
 
@@ -73,6 +75,10 @@ impl Prompt {
 
     pub fn get_input(&self) -> &String {
         return &self.input;
+    }
+
+    pub fn get_input_rows(&self) -> usize {
+        return 1 + self.input.matches('\n').count();
     }
 
     // stash

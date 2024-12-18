@@ -2,10 +2,12 @@ use std::io::Write;
 use std::collections::HashMap;
 use std::process::Child;
 
-use crate::config::{ShellConfig, load};
-use crate::eval::ExecutionError;
-use crate::history::History;
-use crate::tokenizer::TokenizationError;
+use crossterm::terminal;
+
+use crate::core::config::{ShellConfig, load};
+use crate::eval::eval::ExecutionError;
+use crate::features::history::History;
+use crate::parser::tokenizer::TokenizationError;
 
 #[derive(Debug)]
 pub enum ShellError {
@@ -30,6 +32,7 @@ impl From<TokenizationError> for ShellError {
 pub struct ShellState<'a> {
     pub status: i32,
     pub ps1pos: (u16, u16),
+    pub termsize: (u16, u16),
     pub jobs: Vec<Child>,
     pub history: History,
     pub aliases: HashMap<String, String>,
@@ -43,8 +46,9 @@ impl<'a> ShellState<'a> {
         ShellState {
             status: 0,
             ps1pos: (0,0),
+            termsize: terminal::size().expect("unable to obtain terminal size."),
             jobs: Vec::new(),
-            history: History::new(),
+            history: History::load(),
             aliases: HashMap::new(),
             config: load(),
             stdout: out,

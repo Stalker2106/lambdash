@@ -1,16 +1,16 @@
 use crate::crossterm::QueueableCommand;
 use crate::crossterm::style::Print;
 
-use crate::execute::execute_program;
-use crate::expand::expand_tokens;
-use crate::expression::parse_tokens;
-use crate::cmdoutput::CmdOutput;
-use crate::core::{ShellError, ShellState};
-use crate::expression::ExpressionGroup;
-use crate::redirections::handle_input_redirections;
-use crate::redirections::handle_output_redirections;
-use crate::tokenizer::tokenize;
-use crate::builtins::match_builtin;
+use crate::eval::execute::execute_program;
+use crate::parser::expand::expand_tokens;
+use crate::eval::expression::parse_tokens;
+use crate::core::cmdoutput::CmdOutput;
+use crate::core::core::{ShellError, ShellState};
+use crate::eval::expression::ExpressionGroup;
+use crate::eval::redirections::handle_input_redirections;
+use crate::eval::redirections::handle_output_redirections;
+use crate::parser::tokenizer::tokenize;
+use crate::eval::builtins::match_builtin;
 
 #[derive(Debug)]
 pub struct ExecutionError {

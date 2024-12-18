@@ -1,7 +1,7 @@
 use std::env;
 
-use crate::{core::ShellState, tokenizer::Token};
-
+use crate::core::core::ShellState;
+use crate::parser::tokenizer::Token;
 
 pub fn expand_variable(state: &mut ShellState, var_name: &str) -> String {
   match var_name {

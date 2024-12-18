@@ -1,6 +1,7 @@
 use std::{io::Write, process::{self, Child, Stdio}};
 
-use crate::{cmdoutput::CmdOutput, core::ShellError, eval::ExecutionError};
+use crate::core::{cmdoutput::CmdOutput, core::ShellError};
+use crate::eval::eval::ExecutionError;
 
 
 pub fn spawn_program(program: &str, args: &Vec<String>, input: &Option<Vec<u8>>) -> Result<Child, ShellError> {

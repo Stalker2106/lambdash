@@ -2,12 +2,12 @@ use std::env;
 use std::io::Cursor;
 
 use crossterm::style::Print;
-use crossterm::QueueableCommand;
+use crate::crossterm::QueueableCommand;
 
-use crate::cmdoutput::CmdOutput;
-use crate::core::{ShellState, ShellError};
-use crate::eval::ExecutionError;
-use crate::execute::execute_program;
+use crate::core::cmdoutput::CmdOutput;
+use crate::core::core::{ShellState, ShellError};
+use crate::eval::eval::ExecutionError;
+use crate::eval::execute::execute_program;
 
 pub fn match_builtin(state: &mut ShellState, command: &str, args: &Vec<String>, input: &Option<Vec<u8>>) -> Result<CmdOutput, ShellError> {
     match command {
