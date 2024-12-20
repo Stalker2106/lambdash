@@ -11,5 +11,6 @@ path = "src/main.rs"
 crossterm = "0.28.1"
 glob = "0.3.1"
 serde = { version = "1.0.216", features = ["derive"] }
+tokio = "1.42.0"
 toml = "0.8.19"
 unic-emoji-char = "0.9.0"

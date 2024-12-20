@@ -1,4 +1,4 @@
-use crossterm::{cursor, event::{read, Event, KeyCode, KeyEvent, KeyModifiers}, terminal::{Clear, ClearType}, QueueableCommand};
+use crossterm::{cursor, event::{read, Event, KeyCode, KeyEvent, KeyModifiers}, style::Print, terminal::{Clear, ClearType}, QueueableCommand};
 
 use crate::{features::{autocomplete::Autocomplete, prompt::{CursorMovement, CursorPosition, Prompt}}, rendering::prompt::{align_cursor_with_prompt, clear_prompt_input, print_prompt_input}};
 
@@ -9,10 +9,12 @@ pub fn handle_ctrl_modifiers(state: &mut ShellState, autocomplete: &mut Autocomp
     KeyCode::Char(c) => {
         match c {
             'c' => {
+                align_cursor_with_prompt(state, prompt);
+                state.stdout.queue(Print("^C")).unwrap();
                 prompt.clear_stash();
                 prompt.clear_input();
                 autocomplete.reset(state);
-                return (0, true);
+                return (1, true);
             },
             'd' => {
                 return (0, !prompt.has_input());
@@ -22,9 +24,8 @@ pub fn handle_ctrl_modifiers(state: &mut ShellState, autocomplete: &mut Autocomp
                             .queue(cursor::MoveTo(0,0)).unwrap();
                 state.stdout.queue(cursor::MoveTo(0,0)).unwrap()
                             .queue(Clear(ClearType::All)).unwrap();
-                prompt.stash_input();
                 prompt.clear_input();
-                return (0, true);
+                return (0, false);
             },
             'k' => {
                 if prompt.truncate_input() {

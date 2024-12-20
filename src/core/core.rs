@@ -6,29 +6,7 @@ use std::process::Child;
 use crossterm::terminal;
 
 use crate::core::config::{ShellConfig, load};
-use crate::eval::eval::ExecutionError;
 use crate::features::history::History;
-use crate::parser::tokenizer::TokenizationError;
-
-#[derive(Debug)]
-pub enum ShellError {
-    Tokenization(TokenizationError),
-    Execution(ExecutionError),
-    NoBuiltin,
-    ExitRequest
-}
-
-impl From<ExecutionError> for ShellError {
-    fn from(err: ExecutionError) -> Self {
-        ShellError::Execution(err)
-    }
-}
-
-impl From<TokenizationError> for ShellError {
-    fn from(err: TokenizationError) -> Self {
-        ShellError::Tokenization(err)
-    }
-}
 
 pub struct ShellState<'a> {
     pub status: i32,

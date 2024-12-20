@@ -2,6 +2,8 @@ use std::iter::Peekable;
 
 use unic_emoji_char::is_emoji;
 
+use crate::core::error::StatusEnum;
+
 #[derive(Debug, PartialEq, Clone)]
 pub enum RedirectionType {
     Input,  // >
@@ -30,10 +32,17 @@ pub enum Token {
 }
 
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum TokenizationError {
-    UnmatchedCharacter
+    UnmatchedCharacter = 127
 }
+
+impl StatusEnum for TokenizationError {
+    fn status(&self) -> u16 {
+        *self as u16
+    }
+}
+
 
 pub fn handle_escaping(iter: &mut Peekable<std::str::Chars>, index: &mut i32, peeked: char) -> Option<String> {
     if peeked == '\\' {

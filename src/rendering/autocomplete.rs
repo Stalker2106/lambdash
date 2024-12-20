@@ -1,6 +1,6 @@
 use crossterm::{cursor, style::{Print, ResetColor, SetBackgroundColor}, terminal, QueueableCommand};
 
-use crate::core::{cmdoutput::CmdOutput, core::{ShellError, ShellState}};
+use crate::core::{cmdoutput::CmdOutput, core::ShellState, error::ShellError};
 use crate::features::autocomplete::AutocompleteState;
 
 pub fn render_options(state: &mut ShellState, astate: &AutocompleteState, max_rows: u16) -> Result<CmdOutput, ShellError> {

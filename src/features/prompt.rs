@@ -35,10 +35,6 @@ impl Prompt {
         self.cursor += c.len_utf8();
     }
 
-    pub fn append_char(&mut self, c: char) {
-        self.input.push(c);
-    }
-
     pub fn remove_char(&mut self, back: bool) -> bool {
         if back && self.cursor > 0 {
             self.cursor -= 1;
@@ -100,11 +96,6 @@ impl Prompt {
     }
 
     // cursor
-
-    pub fn get_cursor(&self) -> usize {
-        return self.input[..self.cursor].chars().count()
-    }
-
     pub fn get_cursor_offset(&self) -> (usize, usize) {
         let input_until_cursor = &self.input[..self.cursor];
         let newline_count = input_until_cursor.matches('\n').count();
@@ -139,7 +130,7 @@ impl Prompt {
             return 0;
         }
         let mut local_cursor = self.cursor - 1;
-        while local_cursor >= 0 {
+        loop {
             if !self.input.is_char_boundary(local_cursor) {
                 local_cursor -= 1;
             } else {
@@ -152,7 +143,6 @@ impl Prompt {
                 return diff;
             }
         }
-        return 0;
     }
 
     pub fn move_cursor_right(&mut self, movement: CursorMovement) -> usize {
@@ -160,7 +150,7 @@ impl Prompt {
             return 0;
         }
         let mut local_cursor = self.cursor + 1;
-        while local_cursor <= self.input.len() {
+        loop {
             if !self.input.is_char_boundary(local_cursor) {
                 local_cursor += 1;
             } else {
@@ -173,7 +163,6 @@ impl Prompt {
                 return diff;
             }
         }
-        return 0;
     }
 
 }

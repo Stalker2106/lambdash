@@ -1,4 +1,4 @@
-use core::readloop::prompt_readloop;
+use core::{error::ShellError, readloop::prompt_readloop};
 use std::io::{stdout, stderr};
 extern crate crossterm;
 
@@ -16,7 +16,7 @@ mod features;
 mod parser;
 mod rendering;
 
-use core::core::{ShellError, ShellState};
+use core::core::{ShellState};
 use features::prompt::Prompt;
 use eval::eval::eval_expr;
 
@@ -49,16 +49,6 @@ fn main() {
                         break; // Exit loop after successful execution
                     }
                     Err(e) => match e {
-                        ShellError::Execution(error) => {
-                            state.history.submit(&expr);
-                            state.status = error.status;
-                            state.stdout
-                                .queue(SetForegroundColor(Color::Red)).unwrap()
-                                .queue(Print(format!("{}", error.details))).unwrap()
-                                .queue(ResetColor).unwrap()
-                                .queue(Print("\n")).unwrap();
-                            break; // Exit loop on execution error
-                        }
                         ShellError::Tokenization(_) => {
                             prompt.add_char('\n');
                             state.ps1pos.1 -= 1;
@@ -71,7 +61,18 @@ fn main() {
                             chars_read = -1;
                             break;
                         }
-                        _ => ()
+                        error => {
+                            state.history.submit(&expr);
+                            state.status = error.status() as i32;
+                            if let Ok(error_str) = String::from_utf8(error.to_output(prompt.get_input())) {
+                                state.stdout
+                                    .queue(SetForegroundColor(Color::Red)).unwrap()
+                                    .queue(Print(error_str)).unwrap()
+                                    .queue(ResetColor).unwrap()
+                                    .queue(Print("\n")).unwrap();
+                            }
+                            break; // Exit loop on execution error
+                        }
                     },
                 }
             }

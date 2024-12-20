@@ -1,7 +1,19 @@
 use std::{io::Write, process::{self, Child, Stdio}};
 
-use crate::core::{cmdoutput::CmdOutput, core::ShellError};
-use crate::eval::eval::ExecutionError;
+use crate::core::{cmdoutput::CmdOutput, error::{ShellError, StatusEnum}};
+
+#[derive(Debug, Copy, Clone)]
+pub enum ExecutionError {
+    CommandNotFound = 127,
+    ExecutionFailed = 128,
+    FailedToWriteStdin = 129
+}
+
+impl StatusEnum for ExecutionError {
+    fn status(&self) -> u16 {
+        *self as u16
+    }
+}
 
 pub fn spawn_program(program: &str, args: &Vec<String>, input: &Option<Vec<u8>>) -> Result<Child, ShellError> {
   let mut process = process::Command::new(program);
@@ -14,21 +26,15 @@ pub fn spawn_program(program: &str, args: &Vec<String>, input: &Option<Vec<u8>>)
   let mut child = match process.spawn() {
       Ok(child) => child,
       Err(_error) => {
-          return Err(ShellError::Execution(ExecutionError::new(
-              127,
-              format!("{}: command not found", program),
-          )))
+          return Err(ShellError::Execution(ExecutionError::CommandNotFound));
       }
   };
 
   // If there's input, write it to the child's stdin
   if let Some(input_data) = input {
       if let Some(stdin) = child.stdin.as_mut() {
-          if let Err(e) = stdin.write_all(&input_data) {
-              return Err(ShellError::Execution(ExecutionError::new(
-                  1,
-                  format!("Failed to write to stdin: {}", e),
-              )));
+          if let Err(_) = stdin.write_all(&input_data) {
+              return Err(ShellError::Execution(ExecutionError::FailedToWriteStdin));
           }
       }
   }
@@ -40,10 +46,7 @@ pub fn execute_program(program: &str, args: &Vec<String>, input: &Option<Vec<u8>
   match spawn_program(program, args, input) {
       Ok(child) => match child.wait_with_output() {
           Ok(output) => Ok(CmdOutput::from_output(&output)),
-          Err(e) => Err(ShellError::Execution(ExecutionError::new(
-              1,
-              format!("Failed to execute command: {}", e),
-          ))),
+          Err(_) => Err(ShellError::Execution(ExecutionError::ExecutionFailed)),
       },
       Err(error) => Err(error)
   }

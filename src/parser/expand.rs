@@ -1,6 +1,5 @@
 use std::env;
 use glob::glob;
-use std::path::Path;
 
 use crate::core::core::ShellState;
 use crate::parser::tokenizer::Token;

@@ -2,12 +2,34 @@ use std::env;
 use std::io::Cursor;
 
 use crossterm::style::Print;
+use crate::core::error::{ShellError, StatusEnum};
 use crate::crossterm::QueueableCommand;
 
 use crate::core::cmdoutput::CmdOutput;
-use crate::core::core::{ShellState, ShellError};
-use crate::eval::eval::ExecutionError;
+use crate::core::core::ShellState;
 use crate::eval::execute::execute_program;
+
+#[derive(Debug)]
+pub struct BuiltinError {
+    pub status: u16,
+    pub message: String
+}
+
+impl BuiltinError {
+    pub fn new(code: u16, msg: String) -> BuiltinError {
+        return BuiltinError {
+            status: code,
+            message: msg
+        };
+    }
+}
+
+impl StatusEnum for BuiltinError {
+    fn status(&self) -> u16 {
+        return self.status;
+    }
+}
+
 
 pub fn match_builtin(state: &mut ShellState, command: &str, args: &Vec<String>, input: &Option<Vec<u8>>) -> Result<CmdOutput, ShellError> {
     match command {
@@ -40,7 +62,7 @@ fn cmd_alias(state: &mut ShellState, args: &Vec<String>) -> Result<CmdOutput, Sh
                 let (alias, cmd) = combined_args.split_at(index);
                 state.aliases.insert(alias.replace('=', " ").to_string(), cmd.to_string());
             } else {
-                return Err(ShellError::Execution(ExecutionError::new(1, "alias: body cannot be empty".to_string())));
+                return Err(ShellError::Builtin(BuiltinError::new(1, "alias: body cannot be empty".to_string())));
             }
         }
     }
@@ -65,7 +87,7 @@ fn cmd_cd(args: &Vec<String>) -> Result<CmdOutput, ShellError> {
             }
         },
         _ => {
-            return Err(ShellError::Execution(ExecutionError::new(1, "too many arguments for cd".to_string())));
+            return Err(ShellError::Builtin(BuiltinError::new(1, "too many arguments for cd".to_string())));
         }
     }
     env::set_var("PWD", env::current_dir().unwrap());

@@ -1,3 +1,4 @@
+use crate::core::error::ShellError;
 use crate::crossterm::QueueableCommand;
 use crate::crossterm::style::Print;
 
@@ -5,26 +6,12 @@ use crate::eval::execute::execute_program;
 use crate::parser::expand::expand_tokens;
 use crate::eval::expression::parse_tokens;
 use crate::core::cmdoutput::CmdOutput;
-use crate::core::core::{ShellError, ShellState};
+use crate::core::core::ShellState;
 use crate::eval::expression::ExpressionGroup;
 use crate::eval::redirections::handle_input_redirections;
 use crate::eval::redirections::handle_output_redirections;
 use crate::parser::tokenizer::tokenize;
 use crate::eval::builtins::match_builtin;
-
-#[derive(Debug)]
-pub struct ExecutionError {
-    pub status: i32,
-    pub details: String
-}
-
-impl ExecutionError {
-    pub fn new(code: i32, msg: String) -> ExecutionError {
-        ExecutionError{status: code, details: msg.to_string()}
-    }
-}
-
-// Execution
 
 pub fn run_command(state: &mut ShellState, group: &ExpressionGroup) -> Result<Option<CmdOutput>, ShellError> {
     let mut output: Option<CmdOutput> = None;
@@ -94,7 +81,7 @@ pub fn eval_expr(state: &mut ShellState, expr: &String) -> Result<(), ShellError
                         }
                         return Ok(());
                     },
-                    Err(_) => return Err(ShellError::Execution(ExecutionError::new(1, format!("invalid syntax"))))
+                    Err(error) => return Err(ShellError::Parser(error))
                 }
             }
             return Ok(())

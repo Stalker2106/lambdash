@@ -2,13 +2,19 @@ use std::vec::Vec;
 use core::slice::Iter;
 use std::iter::Peekable;
 
-use crate::parser::tokenizer::{RedirectionType, Token};
+use crate::{core::error::StatusEnum, parser::tokenizer::{RedirectionType, Token}};
 
-#[derive(Debug)]
-pub enum ParseError {
-    InvalidBackground,
-    InvalidPipe,
-    InvalidRedirection
+#[derive(Debug, Copy, Clone)]
+pub enum ParserError {
+    InvalidBackground = 228,
+    InvalidPipe = 229,
+    InvalidRedirection = 230
+}
+
+impl StatusEnum for ParserError {
+    fn status(&self) -> u16 {
+        *self as u16
+    }
 }
 
 pub struct Redirection {
@@ -36,7 +42,7 @@ pub struct ExpressionGroup {
 }
 
 
-pub fn parse_command(tokens_iter: &mut Peekable<Iter<Token>>) -> Result<ExpressionGroup, ParseError>  {
+pub fn parse_command(tokens_iter: &mut Peekable<Iter<Token>>) -> Result<ExpressionGroup, ParserError>  {
     let mut group: ExpressionGroup = ExpressionGroup{
         expressions: Vec::new(),
         gtype: ExpressionGroupType::Single
@@ -68,13 +74,13 @@ pub fn parse_command(tokens_iter: &mut Peekable<Iter<Token>>) -> Result<Expressi
                                     background: false
                                 })
                             },
-                            _ => return Err(ParseError::InvalidPipe)
+                            _ => return Err(ParserError::InvalidPipe)
                         }
                     } else {
-                        return Err(ParseError::InvalidPipe);
+                        return Err(ParserError::InvalidPipe);
                     }
                 } else {
-                    return Err(ParseError::InvalidPipe);
+                    return Err(ParserError::InvalidPipe);
                 }
             },
             Token::Redirection(rtype) => {
@@ -96,13 +102,13 @@ pub fn parse_command(tokens_iter: &mut Peekable<Iter<Token>>) -> Result<Expressi
                                     }
                                 }
                             },
-                            _ => return Err(ParseError::InvalidPipe)
+                            _ => return Err(ParserError::InvalidPipe)
                         }
                     } else {
-                        return Err(ParseError::InvalidRedirection);
+                        return Err(ParserError::InvalidRedirection);
                     }
                 } else {
-                    return Err(ParseError::InvalidRedirection);
+                    return Err(ParserError::InvalidRedirection);
                 }
             },
             Token::Background => {
@@ -110,7 +116,7 @@ pub fn parse_command(tokens_iter: &mut Peekable<Iter<Token>>) -> Result<Expressi
                     cmd.background = true;
                     break;
                 } else {
-                    return Err(ParseError::InvalidBackground)
+                    return Err(ParserError::InvalidBackground)
                 }
             },
             Token::CommandSeparator => {
@@ -127,7 +133,7 @@ pub fn parse_command(tokens_iter: &mut Peekable<Iter<Token>>) -> Result<Expressi
     return Ok(group);
 }
 
-pub fn parse_tokens(tokens: &Vec<Token>) -> Result<Vec<ExpressionGroup>, ParseError> {
+pub fn parse_tokens(tokens: &Vec<Token>) -> Result<Vec<ExpressionGroup>, ParserError> {
     let mut parsed_groups = Vec::new();
     let mut tokens_iter = tokens.iter().peekable();
 
