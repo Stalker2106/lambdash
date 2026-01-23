@@ -16,13 +16,12 @@ pub struct PromptConfig {
 pub fn load() -> ShellConfig {
     if let Some(config_path) = get_path() {
         if let Ok(data) = fs::read_to_string(config_path) {
-            return toml::from_str(&data).unwrap();
-        } else {
-            return default();
+            if let Ok(config) = toml::from_str(&data) {
+                return config;
+            }
         }
-    } else {
-        return default();
     }
+    return default();
 }
 
 fn get_path() -> Option<PathBuf> {

@@ -78,7 +78,8 @@ pub fn print_execution_error(error: &ExecutionError, input: &str) -> Vec<u8>  {
   let mut cursor = Cursor::new(&mut output);
   match error {
     ExecutionError::CommandNotFound => {
-      cursor.queue(Print(&format!("{}: command not found", input))).unwrap();
+      let command = input.split_whitespace().next().unwrap_or(input);
+      cursor.queue(Print(&format!("{}: command not found", command))).unwrap();
     },
     _ => {
       cursor.queue(Print(format!("{:?}", error))).unwrap();

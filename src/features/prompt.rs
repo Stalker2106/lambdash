@@ -74,7 +74,20 @@ impl Prompt {
     }
 
     pub fn get_input_rows(&self) -> usize {
-        return 1 + self.input.matches('\n').count();
+        use crossterm::terminal;
+        
+        let (term_width, _) = terminal::size().unwrap_or((80, 24));
+        let lines: Vec<&str> = self.input.split('\n').collect();
+        let mut total_rows = 0;
+        
+        for line in lines {
+            // Calculate visual width of this line
+            let line_width: usize = line.chars().map(|c| if is_emoji(c) { 2 } else { 1 }).sum();
+            // Count how many terminal rows this line takes (with wrapping)
+            total_rows += (line_width / term_width as usize) + 1;
+        }
+        
+        return total_rows.max(1);
     }
 
     // stash
@@ -96,15 +109,54 @@ impl Prompt {
     }
 
     // cursor
-    pub fn get_cursor_offset(&self) -> (usize, usize) {
+    pub fn get_cursor_offset(&self, ps1pos: (u16, u16)) -> (usize, usize) {
+        use crossterm::terminal;
+        
         let input_until_cursor = &self.input[..self.cursor];
-        let newline_count = input_until_cursor.matches('\n').count();
-        let mut column_index = input_until_cursor.chars().map(|c| if is_emoji(c) { 2 } else { 1 }).sum::<usize>();
-        if let Some(pos) = input_until_cursor.rfind('\n') {
-            let input_newline_cursor = &input_until_cursor[pos + 1..self.cursor];
-            column_index = input_newline_cursor.chars().map(|c| if is_emoji(c) { 2 } else { 1 }).sum::<usize>();
+        let (term_width, _) = terminal::size().unwrap_or((80, 24));
+        
+        // Split by explicit newlines
+        let lines: Vec<&str> = input_until_cursor.split('\n').collect();
+        let mut total_rows = 0;
+        let mut column_index = 0;
+        
+        for (line_number, line) in lines.iter().enumerate() {
+            // Calculate visual width of this line
+            let mut current_line_width = if line_number == 0 { ps1pos.0 as usize } else { 0 };
+            let mut wrapped_lines = 1;
+            
+            for c in line.chars() {
+                let char_width = if c.is_ascii_digit() {
+                    1
+                } else if is_emoji(c) {
+                    2
+                } else {
+                    1
+                };
+                if current_line_width + char_width > term_width as usize && current_line_width > 0 {
+                    // Wrap to next line if we exceed terminal width
+                    wrapped_lines += 1;
+                    current_line_width = char_width;
+                } else {
+                    current_line_width += char_width;
+                }
+            }
+            
+            if line_number < lines.len() - 1 {
+                // Not the last line - count all wrapped rows
+                total_rows += wrapped_lines;
+            } else {
+                // Last line - this is where the cursor is
+                total_rows += wrapped_lines - 1; // Add wrapped lines except the current one
+                column_index = current_line_width % term_width as usize;
+                if column_index == 0 && current_line_width > 0 {
+                    // Handle case where we exactly fill the line
+                    column_index = term_width as usize;
+                }
+            }
         }
-        return (column_index, newline_count)
+        
+        (column_index, total_rows)
     }
 
     pub fn move_cursor(&mut self, pos: CursorPosition) -> bool {
@@ -116,8 +168,8 @@ impl Prompt {
                 }
             },
             CursorPosition::End => {
-                if self.cursor != self.input.len()-1 {
-                    self.cursor = self.input.len()-1;
+                if self.cursor != self.input.len() {
+                    self.cursor = self.input.len();
                     return true;
                 }
             }

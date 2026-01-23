@@ -125,11 +125,14 @@ fn cmd_pwd() -> Result<CmdOutput, ShellError> {
 }
 
 fn cmd_export(args: &Vec<String>, input: &Option<Vec<u8>>) -> Result<CmdOutput, ShellError> {
-    if args.len() <= 0 {
-        return execute_program("env", &Vec::new(), input);
+    if args.is_empty() {
+        return execute_program("env", &Vec::new(), input, false);
     }
     for arg in args {
         let kv = arg.split('=').collect::<Vec<&str>>();
+        if kv.len() != 2 {
+            return Err(ShellError::Builtin(BuiltinError::new(1, "export: invalid number of arguments".to_string())));
+        }
         env::set_var(kv[0].to_string(), kv[1].to_string());
     }
     return Ok(CmdOutput::from_status(0));

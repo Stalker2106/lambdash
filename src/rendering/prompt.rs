@@ -14,26 +14,40 @@ pub fn clear_prompt_input(state: &mut ShellState, prompt: &Prompt) {
 
 pub fn print_prompt_input(state: &mut ShellState, input: &String) {
   let (ps1col, ps1row) = &mut state.ps1pos;
-  let (_, termrows) = terminal::size().unwrap();
+  let (termcols, termrows) = terminal::size().unwrap();
+  state.stdout.queue(cursor::MoveTo(*ps1col, *ps1row)).unwrap();
+  let input_lines: Vec<String> = get_prompt_lines(input);
+  if termrows - *ps1row < input_lines.len() as u16 {
+    *ps1row = *ps1row - (input_lines.len() - 1) as u16;
+  }
+  for input_line in input_lines {
+    state.stdout.queue(Print(input_line)).unwrap();
+  }
+}
+
+pub fn get_prompt_lines(input: &String) -> Vec<String> {
+  let (termcols, termrows) = terminal::size().unwrap();
   let input_lines: Vec<&str> = input.split('\n').collect();
+  let mut lines = Vec::new();
   for (row, input_line) in input_lines.iter().enumerate() {
-      state.stdout.queue(cursor::MoveTo(*ps1col, *ps1row)).unwrap();
       if row < input_lines.len() - 1 {
-          state.stdout.queue(Print(format!("{}\n", input_line))).unwrap();
-          // handle newline scrolling whole term, therefore moving ps1
-          if *ps1row + (row as u16) >= termrows - 1 {
-              *ps1row -= 1;
-          }
+          lines.push(input_line.to_string());
       } else {
-          state.stdout.queue(Print(format!("{}", input_line))).unwrap();
+        let mut offset = 0;
+        while offset < input_line.len() {
+            let chunk_end = std::cmp::min(offset + termcols as usize, input_line.len());
+            lines.push(input_line[offset..chunk_end].to_string());
+            offset = chunk_end;
+        }
       }
   }
+  return lines;
 }
 
 pub fn align_cursor_with_prompt(state: &mut ShellState, prompt: &Prompt) {
   let (ps1col, ps1row) = state.ps1pos;
-  let (curcol, currow) = prompt.get_cursor_offset();
-  state.stdout.queue(cursor::MoveTo(ps1col + curcol as u16, ps1row + currow as u16)).unwrap();
+  let (curcol, currow) = prompt.get_cursor_offset(state.ps1pos);
+  state.stdout.queue(cursor::MoveTo(curcol as u16, ps1row + currow as u16)).unwrap();
 }
 
 pub fn print_prompt(state: &mut ShellState, prompt: &Prompt) {

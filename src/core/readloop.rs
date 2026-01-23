@@ -4,6 +4,8 @@ use crate::{features::{autocomplete::Autocomplete, prompt::{CursorMovement, Curs
 
 use super::core::ShellState;
 
+/// Handles keyboard shortcuts with the Control modifier (e.g., Ctrl+C, Ctrl+D, Ctrl+L, Ctrl+K).
+/// Returns a tuple containing (chars_read: i32, should_exit: bool).
 pub fn handle_ctrl_modifiers(state: &mut ShellState, autocomplete: &mut Autocomplete, prompt: &mut Prompt, event: KeyEvent) -> (i32, bool) {
   match event.code {
     KeyCode::Char(c) => {
@@ -40,6 +42,9 @@ pub fn handle_ctrl_modifiers(state: &mut ShellState, autocomplete: &mut Autocomp
   }
 }
 
+
+/// Handles keyboard shortcuts with the Alt modifier (e.g., Alt+Left/Right for word navigation).
+/// Returns a tuple containing (chars_read: i32, should_exit: bool).
 pub fn handle_alt_modifiers(state: &mut ShellState, prompt: &mut Prompt, event: KeyEvent) -> (i32, bool) {
   match event.code {
     KeyCode::Left => {
@@ -60,6 +65,10 @@ pub fn handle_alt_modifiers(state: &mut ShellState, prompt: &mut Prompt, event: 
 }
 }
 
+
+/// Handles regular keyboard input and navigation (arrow keys, backspace, enter, etc.).
+/// Manages command history navigation and tab completion.
+/// Returns a tuple containing (chars_read: i32, should_exit: bool).
 pub fn handle_input(state: &mut ShellState, autocomplete: &mut Autocomplete, prompt: &mut Prompt, history_idx: &mut Option<usize>, event: KeyEvent) -> (i32, bool) {
   match event.code {
     KeyCode::Char(c) => {
@@ -98,7 +107,7 @@ pub fn handle_input(state: &mut ShellState, autocomplete: &mut Autocomplete, pro
         return (0, false);
     },
     KeyCode::Up => {
-        if !history_idx.is_some() {
+        if history_idx.is_none() {
             let index = state.history.get_first_index();
             if index.is_some() {
                 *history_idx = index;
@@ -175,6 +184,10 @@ pub fn handle_input(state: &mut ShellState, autocomplete: &mut Autocomplete, pro
   }
 }
 
+
+/// Main event handler that routes different types of events to their respective handlers.
+/// Handles terminal resize events and keyboard events with different modifiers.
+/// Returns a tuple containing (chars_read: i32, should_exit: bool).
 pub fn handle_event(state: &mut ShellState, autocomplete: &mut Autocomplete, prompt: &mut Prompt, history_idx: &mut Option<usize>, event: Event) -> (i32, bool) {
   match event {
     Event::Resize(width, height) => {
@@ -194,6 +207,10 @@ pub fn handle_event(state: &mut ShellState, autocomplete: &mut Autocomplete, pro
   }
 }
 
+
+/// The main read-eval-print loop for the shell's prompt.
+/// Handles raw terminal input and processes events until a command is submitted.
+/// Returns the number of characters read before submission.
 pub fn prompt_readloop(state: &mut ShellState, autocomplete: &mut Autocomplete, prompt: &mut Prompt, history_idx: &mut Option<usize>) -> i32 {
   let mut chars_read = -1;
   crossterm::terminal::enable_raw_mode().unwrap();

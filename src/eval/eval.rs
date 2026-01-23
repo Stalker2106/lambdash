@@ -15,7 +15,12 @@ use crate::eval::builtins::match_builtin;
 
 pub fn run_command(state: &mut ShellState, group: &ExpressionGroup) -> Result<Option<CmdOutput>, ShellError> {
     let mut output: Option<CmdOutput> = None;
+    let in_pipeline = group.expressions.len() > 1;
+    
     for expr in &group.expressions {
+        if expr.words.is_empty() {
+            continue;
+        }
         let program = &expr.words[0];
         let args = expr.words[1..].to_vec();
         let mut input:  Option<Vec<u8>> = None;
@@ -33,7 +38,7 @@ pub fn run_command(state: &mut ShellState, group: &ExpressionGroup) -> Result<Op
             Err(error) => {
                 match error {
                     ShellError::NoBuiltin => {
-                        match execute_program(program, &args, &input) {
+                        match execute_program(program, &args, &input, in_pipeline) {
                             Ok(out) => {
                                 if let Ok(res) = handle_output_redirections(&expr.outputs, &out.stdout) {
                                     if !res {

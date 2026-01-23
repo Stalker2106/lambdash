@@ -31,7 +31,7 @@ fn main() {
         let mut history_idx: Option<usize> = None;
         prompt.unstash_input();
         print_prompt(&mut state, &prompt);
-        state.ps1pos = cursor::position().unwrap();
+        state.ps1pos = cursor::position().unwrap_or((0, 0));
         state.stderr.flush().unwrap();
         state.stdout.queue(Print(prompt.get_input())).unwrap();
         state.stdout.flush().unwrap();
@@ -77,6 +77,7 @@ fn main() {
                 }
             }
             prompt.clear_input();
+            prompt.clear_stash();
         }
         if chars_read == -1 {
             state.history.persist();

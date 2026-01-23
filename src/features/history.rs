@@ -30,7 +30,7 @@ impl History {
     }
 
     pub fn get_first_index(&self) -> Option<usize> {
-        if self.values.len() <= 0 {
+        if self.values.is_empty() {
             return None;
         }
         return Some(self.values.len() - 1);
