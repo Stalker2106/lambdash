@@ -31,10 +31,9 @@ fn main() {
         let mut history_idx: Option<usize> = None;
         prompt.unstash_input();
         print_prompt(&mut state, &prompt);
+        state.stdout.flush().unwrap();
         state.ps1pos = cursor::position().unwrap();
         state.stderr.flush().unwrap();
-        state.stdout.queue(Print(prompt.get_input())).unwrap();
-        state.stdout.flush().unwrap();
         // read loop
         let mut chars_read = prompt_readloop(&mut state, &mut autocomplete, &mut prompt, &mut history_idx);
         state.stdout.queue(Print("\n")).unwrap()

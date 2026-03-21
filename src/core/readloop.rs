@@ -1,4 +1,4 @@
-use crossterm::{cursor, event::{read, Event, KeyCode, KeyEvent, KeyModifiers}, style::Print, terminal::{Clear, ClearType}, QueueableCommand};
+use crossterm::{cursor, event::{read, Event, KeyCode, KeyEvent, KeyModifiers, KeyEventKind}, style::Print, terminal::{Clear, ClearType}, QueueableCommand};
 
 use crate::{features::{autocomplete::Autocomplete, prompt::{CursorMovement, CursorPosition, Prompt}}, rendering::prompt::{align_cursor_with_prompt, clear_prompt_input, print_prompt_input}};
 
@@ -182,9 +182,12 @@ pub fn handle_event(state: &mut ShellState, autocomplete: &mut Autocomplete, pro
       return (0, false);
     },
     Event::Key(event) => {
-        if event.modifiers.contains(KeyModifiers::CONTROL) {
+        if event.kind != KeyEventKind::Press {
+          return (0, false); // Ignore Release event (Windows generates Press & Release)
+        }
+        if event.modifiers.contains(KeyModifiers::CONTROL) && !event.modifiers.contains(KeyModifiers::ALT) {
           return handle_ctrl_modifiers(state, autocomplete, prompt, event);
-        } else if event.modifiers.contains(KeyModifiers::ALT) {
+        } else if event.modifiers.contains(KeyModifiers::ALT) && !event.modifiers.contains(KeyModifiers::CONTROL) {
           return handle_alt_modifiers(state, prompt, event);
         } else {
           return handle_input(state, autocomplete, prompt, history_idx, event);

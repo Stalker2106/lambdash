@@ -1,4 +1,4 @@
-use unic_emoji_char::is_emoji;
+use unicode_width::UnicodeWidthChar;
 
 pub struct Prompt {
     input_stash: Option<String>,
@@ -99,10 +99,10 @@ impl Prompt {
     pub fn get_cursor_offset(&self) -> (usize, usize) {
         let input_until_cursor = &self.input[..self.cursor];
         let newline_count = input_until_cursor.matches('\n').count();
-        let mut column_index = input_until_cursor.chars().map(|c| if is_emoji(c) { 2 } else { 1 }).sum::<usize>();
+        let mut column_index = input_until_cursor.chars().map(|c| c.width().unwrap_or(1)).sum::<usize>();
         if let Some(pos) = input_until_cursor.rfind('\n') {
             let input_newline_cursor = &input_until_cursor[pos + 1..self.cursor];
-            column_index = input_newline_cursor.chars().map(|c| if is_emoji(c) { 2 } else { 1 }).sum::<usize>();
+            column_index = input_newline_cursor.chars().map(|c| c.width().unwrap_or(1)).sum::<usize>();
         }
         return (column_index, newline_count)
     }

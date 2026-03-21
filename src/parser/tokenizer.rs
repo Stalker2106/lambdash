@@ -1,7 +1,5 @@
 use std::iter::Peekable;
 
-use unic_emoji_char::is_emoji;
-
 use crate::core::error::StatusEnum;
 
 #[derive(Debug, PartialEq, Clone)]
@@ -65,7 +63,7 @@ pub fn parse_identifier(iter: &mut Peekable<std::str::Chars>, index: &mut i32) -
     while let Some(&next) = iter.peek() {
         if let Some(sequence) = handle_escaping(iter, index, next) {
             identifier.push_str(&sequence);
-        } else if next.is_alphanumeric() || next == '_' || is_emoji(next) {
+        } else if next.is_alphanumeric() || next == '_' {
             identifier.push(iter.next().unwrap());
             *index += 1;
         } else {
@@ -83,9 +81,10 @@ fn parse_until_separator(iter: &mut Peekable<std::str::Chars>, index: &mut i32) 
             word.push_str(&sequence);
         } else if next.is_whitespace() || SEPARATOR_CHARS.contains(next) {
             break;
+        } else {
+            word.push(iter.next().unwrap());
+            *index += 1;
         }
-        word.push(iter.next().unwrap());
-        *index += 1;
     }
     return word;
 }
@@ -96,13 +95,14 @@ fn parse_until_next(iter: &mut Peekable<std::str::Chars>, index: &mut i32, closi
     while let Some(&next) = iter.peek() {
         if let Some(sequence) = handle_escaping(iter, index, next) {
             content.push_str(&sequence);
-        } if next == closing_char {
+        } else if next == closing_char {
             closed = true;
             iter.next();
             *index += 1;
             break;
+        } else {
+            content.push(iter.next().unwrap());
         }
-        content.push(iter.next().unwrap());
     }
     if !closed {
         return Err(TokenizationError::UnmatchedCharacter);
