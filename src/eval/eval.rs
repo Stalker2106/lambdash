@@ -2,7 +2,7 @@ use crate::core::error::ShellError;
 use crate::crossterm::QueueableCommand;
 use crate::crossterm::style::Print;
 
-use crate::eval::execute::execute_program;
+use crate::eval::execute::{execute_program, spawn_program};
 use crate::parser::expand::expand_tokens;
 use crate::eval::expression::parse_tokens;
 use crate::core::cmdoutput::CmdOutput;
@@ -33,15 +33,29 @@ pub fn run_command(state: &mut ShellState, group: &ExpressionGroup) -> Result<Op
             Err(error) => {
                 match error {
                     ShellError::NoBuiltin => {
-                        match execute_program(program, &args, &input) {
-                            Ok(out) => {
-                                if let Ok(res) = handle_output_redirections(&expr.outputs, &out.stdout) {
-                                    if !res {
-                                        output = Some(out);
+                        if expr.background {
+                            match spawn_program(program, &args, &input) {
+                                Ok(child) => {
+                                    let pid = child.id();
+                                    let job_id = state.jobs.len() + 1;
+                                    let job_cmd = format!("{} {}", program, args.join(" "));
+                                    state.jobs.push((job_id, job_cmd, child));
+                                    state.stdout.queue(Print(format!("[{}] {} {}\n", job_id, pid, program))).unwrap();
+                                    output = None; // Background jobs don't produce output
+                                },
+                                Err(err) => return Err(err)
+                            }
+                        } else {
+                            match execute_program(program, &args, &input) {
+                                Ok(out) => {
+                                    if let Ok(res) = handle_output_redirections(&expr.outputs, &out.stdout) {
+                                        if !res {
+                                            output = Some(out);
+                                        }
                                     }
-                                }
-                            },
-                            Err(err) => return Err(err)
+                                },
+                                Err(err) => return Err(err)
+                            }
                         }
                     },
                     error => return Err(error)

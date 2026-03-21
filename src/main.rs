@@ -18,6 +18,7 @@ mod rendering;
 
 use core::core::{ShellState};
 use features::prompt::Prompt;
+use eval::jobs::poll_jobs;
 use eval::eval::eval_expr;
 
 fn main() {
@@ -27,6 +28,7 @@ fn main() {
     let mut prompt = Prompt::new(&state.config.prompt.ps1);
     // main loop
     loop {
+        poll_jobs(&mut state);
         let mut autocomplete = Autocomplete::new();
         let mut history_idx: Option<usize> = None;
         prompt.unstash_input();

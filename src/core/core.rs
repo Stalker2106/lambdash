@@ -12,7 +12,7 @@ pub struct ShellState<'a> {
     pub status: i32,
     pub ps1pos: (u16, u16),
     pub termsize: (u16, u16),
-    pub jobs: Vec<Child>,
+    pub jobs: Vec<(usize, String, Child)>,
     pub history: History,
     pub aliases: HashMap<String, String>,
     pub config: ShellConfig,

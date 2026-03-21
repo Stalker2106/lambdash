@@ -39,6 +39,7 @@ pub fn match_builtin(state: &mut ShellState, command: &str, args: &Vec<String>, 
         "export" => cmd_export(args, input),
         "history" => cmd_history(state, args),
         "pwd" => cmd_pwd(),
+        "fg" => cmd_fg(state, args),
         _ => Err(ShellError::NoBuiltin)
     }
 }
@@ -133,4 +134,36 @@ fn cmd_export(args: &Vec<String>, input: &Option<Vec<u8>>) -> Result<CmdOutput, 
         env::set_var(kv[0].to_string(), kv[1].to_string());
     }
     return Ok(CmdOutput::from_status(0));
+}
+
+fn cmd_fg(state: &mut ShellState, args: &[String]) -> Result<CmdOutput, ShellError> {
+    // Parse job id from args, default to last job
+    let job_idx = if let Some(arg) = args.first() {
+        let n: usize = arg.trim_start_matches('%').parse().unwrap_or(1);
+        state.jobs.iter().position(|(id, _, _)| *id == n)
+    } else {
+        if state.jobs.is_empty() { None } else { Some(state.jobs.len() - 1) }
+    };
+
+    let Some(idx) = job_idx else {
+        return Err(ShellError::Builtin(BuiltinError::new(1, "fg: no such job".to_string())));
+    };
+
+    let (job_id, name, child) = &mut state.jobs[idx];
+
+    // Resume if stopped (Unix only)
+    #[cfg(unix)] {
+        use nix::sys::signal::{kill, Signal};
+        use nix::unistd::Pid;
+        let _ = kill(Pid::from_raw(child.id() as i32), Signal::SIGCONT);
+    }
+
+    state.stdout.queue(Print(format!("{}\n", name))).unwrap();
+    state.stdout.flush().unwrap();
+
+    // Wait for it to finish
+    let _ = child.wait();
+    state.jobs.remove(idx);
+
+    Ok(CmdOutput::from_status(0))
 }
