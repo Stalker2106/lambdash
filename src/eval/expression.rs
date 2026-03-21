@@ -22,6 +22,7 @@ pub struct Redirection {
     pub target: String
 }
 
+#[allow(dead_code)]
 pub enum ExpressionGroupType {
     Single,
     Pipeline,
@@ -36,6 +37,7 @@ pub struct Expression {
     pub background: bool
 }
 
+#[allow(dead_code)]
 pub struct ExpressionGroup {
     pub expressions: Vec<Expression>,
     pub gtype: ExpressionGroupType

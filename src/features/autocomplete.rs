@@ -39,12 +39,11 @@ impl Autocomplete {
                 res = astate.items.get(0).cloned();
             }
         } else {
-            let mut res: Vec<String> = Vec::new();
-            if expr.starts_with("cd ") || expr.contains('/') || expr.contains('.') {
-                res = path_completion(&expr);
+            let res = if expr.starts_with("cd ") || expr.contains('/') || expr.contains('.') {
+                path_completion(&expr)
             } else {
-                res = command_completion(&expr);
-            }
+                command_completion(&expr)
+            };
             match res.len() {
                 0 => {
                     return Ok(None);

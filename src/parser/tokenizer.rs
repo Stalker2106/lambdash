@@ -17,6 +17,7 @@ pub enum ConditionType {
 }
 
 #[derive(Clone)]
+#[allow(dead_code)]
 pub enum Token {
     Word(String),
     Pipe,                         // |

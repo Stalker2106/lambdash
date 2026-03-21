@@ -127,7 +127,7 @@ fn cmd_pwd() -> Result<CmdOutput, ShellError> {
 
 fn cmd_export(args: &Vec<String>, input: &Option<Vec<u8>>) -> Result<CmdOutput, ShellError> {
     if args.len() <= 0 {
-        return execute_program("env", &Vec::new(), input);
+        return execute_program("env", &Vec::new(), input, true);
     }
     for arg in args {
         let kv = arg.split('=').collect::<Vec<&str>>();
@@ -149,7 +149,7 @@ fn cmd_fg(state: &mut ShellState, args: &[String]) -> Result<CmdOutput, ShellErr
         return Err(ShellError::Builtin(BuiltinError::new(1, "fg: no such job".to_string())));
     };
 
-    let (job_id, name, child) = &mut state.jobs[idx];
+    let (_job_id, name, child) = &mut state.jobs[idx];
 
     // Resume if stopped (Unix only)
     #[cfg(unix)] {

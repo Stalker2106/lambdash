@@ -2,6 +2,41 @@ use core::{error::ShellError, readloop::prompt_readloop};
 use std::io::{stdout, stderr};
 extern crate crossterm;
 
+#[cfg(windows)]
+use winapi::um::consoleapi::{GetConsoleMode, SetConsoleMode};
+#[cfg(windows)]
+use winapi::um::wincon::{ENABLE_ECHO_INPUT, ENABLE_LINE_INPUT, ENABLE_PROCESSED_INPUT, ENABLE_WINDOW_INPUT};
+#[cfg(windows)]
+use winapi::um::wincon::FlushConsoleInputBuffer;
+#[cfg(windows)]
+use winapi::um::handleapi::INVALID_HANDLE_VALUE;
+#[cfg(windows)]
+use winapi::um::processenv::GetStdHandle;
+#[cfg(windows)]
+use winapi::um::winbase::STD_INPUT_HANDLE;
+
+#[cfg(windows)]
+fn restore_console_mode() {
+    unsafe {
+        let handle = GetStdHandle(STD_INPUT_HANDLE);
+        if handle == INVALID_HANDLE_VALUE {
+            return;
+        }
+
+        let mut mode: u32 = 0;
+        if GetConsoleMode(handle, &mut mode) == 0 {
+            return;
+        }
+
+        let desired = ENABLE_PROCESSED_INPUT | ENABLE_LINE_INPUT | ENABLE_ECHO_INPUT | ENABLE_WINDOW_INPUT;
+        let _ = SetConsoleMode(handle, desired);
+        let _ = FlushConsoleInputBuffer(handle);
+    }
+}
+
+#[cfg(not(windows))]
+fn restore_console_mode() {}
+
 use features::autocomplete::Autocomplete;
 use crossterm::{
     cursor,
@@ -77,6 +112,13 @@ fn main() {
                     },
                 }
             }
+            // Force restore of terminal in case of interactive child processes leaving it in raw mode
+            crossterm::terminal::disable_raw_mode().unwrap();
+            restore_console_mode();
+
+            let (width, height) = crossterm::terminal::size().unwrap();
+            state.update_size(width, height);
+            state.ps1pos = cursor::position().unwrap();
             prompt.clear_input();
         }
         if chars_read == -1 {

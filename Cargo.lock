@@ -129,6 +129,7 @@ dependencies = [
  "tokio",
  "toml",
  "unicode-width",
+ "winapi",
 ]
 
 [[package]]

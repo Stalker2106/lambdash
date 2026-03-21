@@ -15,12 +15,19 @@ impl StatusEnum for ExecutionError {
     }
 }
 
-pub fn spawn_program(program: &str, args: &Vec<String>, input: &Option<Vec<u8>>) -> Result<Child, ShellError> {
+pub fn spawn_program(program: &str, args: &Vec<String>, input: &Option<Vec<u8>>, capture_output: bool) -> Result<Child, ShellError> {
   let mut process = process::Command::new(program);
+
+  let stdin = if input.is_some() {
+      Stdio::piped()
+  } else {
+      Stdio::inherit()
+  };
+
   process.args(args)
-      .stdin(Stdio::piped()) // Allow piping input
-      .stdout(Stdio::piped()) // Capture stdout
-      .stderr(Stdio::piped()); // Capture stderr
+      .stdin(stdin)
+      .stdout(if capture_output { Stdio::piped() } else { Stdio::inherit() })
+      .stderr(if capture_output { Stdio::piped() } else { Stdio::inherit() });
 
   // Spawn the process
   let mut child = match process.spawn() {
@@ -42,12 +49,27 @@ pub fn spawn_program(program: &str, args: &Vec<String>, input: &Option<Vec<u8>>)
   return Ok(child)
 }
 
-pub fn execute_program(program: &str, args: &Vec<String>, input: &Option<Vec<u8>>) -> Result<CmdOutput, ShellError> {
-  match spawn_program(program, args, input) {
-      Ok(child) => match child.wait_with_output() {
-          Ok(output) => Ok(CmdOutput::from_output(&output)),
-          Err(_) => Err(ShellError::Execution(ExecutionError::ExecutionFailed)),
-      },
+pub fn execute_program(program: &str, args: &Vec<String>, input: &Option<Vec<u8>>, capture_output: bool) -> Result<CmdOutput, ShellError> {
+  match spawn_program(program, args, input, capture_output) {
+      Ok(mut child) => {
+          if capture_output {
+              match child.wait_with_output() {
+                  Ok(output) => Ok(CmdOutput::from_output(&output, capture_output)),
+                  Err(_) => Err(ShellError::Execution(ExecutionError::ExecutionFailed)),
+              }
+          } else {
+              match child.wait() {
+                  Ok(status) => {
+                      let code = match status.code() {
+                          Some(code) => code,
+                          None => 1,
+                      };
+                      Ok(CmdOutput::from_status(code))
+                  }
+                  Err(_) => Err(ShellError::Execution(ExecutionError::ExecutionFailed)),
+              }
+          }
+      }
       Err(error) => Err(error)
   }
 }

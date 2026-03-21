@@ -15,7 +15,8 @@ use crate::eval::builtins::match_builtin;
 
 pub fn run_command(state: &mut ShellState, group: &ExpressionGroup) -> Result<Option<CmdOutput>, ShellError> {
     let mut output: Option<CmdOutput> = None;
-    for expr in &group.expressions {
+    for (i, expr) in group.expressions.iter().enumerate() {
+        let is_last = i == group.expressions.len() - 1;
         let program = &expr.words[0];
         let args = expr.words[1..].to_vec();
         let mut input:  Option<Vec<u8>> = None;
@@ -34,19 +35,22 @@ pub fn run_command(state: &mut ShellState, group: &ExpressionGroup) -> Result<Op
                 match error {
                     ShellError::NoBuiltin => {
                         if expr.background {
-                            match spawn_program(program, &args, &input) {
+                            let bg_input = input.or(Some(vec![]));
+                            // For background jobs, do not capture stdout/stderr, so output is written directly
+                            // to the current terminal and the process can run without pipe buffering.
+                            match spawn_program(program, &args, &bg_input, false) {
                                 Ok(child) => {
                                     let pid = child.id();
                                     let job_id = state.jobs.len() + 1;
                                     let job_cmd = format!("{} {}", program, args.join(" "));
                                     state.jobs.push((job_id, job_cmd, child));
                                     state.stdout.queue(Print(format!("[{}] {} {}\n", job_id, pid, program))).unwrap();
-                                    output = None; // Background jobs don't produce output
+                                    output = None; // Background jobs don't produce capture output
                                 },
                                 Err(err) => return Err(err)
                             }
                         } else {
-                            match execute_program(program, &args, &input) {
+                            match execute_program(program, &args, &input, !is_last) {
                                 Ok(out) => {
                                     if let Ok(res) = handle_output_redirections(&expr.outputs, &out.stdout) {
                                         if !res {

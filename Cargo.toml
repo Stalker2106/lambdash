@@ -14,3 +14,4 @@ serde = { version = "1.0.216", features = ["derive"] }
 tokio = "1.42.0"
 toml = "0.8.19"
 unicode-width = "0.1.13"
+winapi = "0.3"

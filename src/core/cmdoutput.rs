@@ -15,15 +15,15 @@ impl CmdOutput {
             stderr: Vec::new()
         }
     }
-    pub fn from_output(out: &Output) -> CmdOutput {
+    pub fn from_output(out: &Output, capture_output: bool) -> CmdOutput {
         let mut code = 0;
         if let Some(exitstatus) = out.status.code() {
             code = exitstatus;
         }
         return CmdOutput{
             status: Some(code),
-            stdout: out.stdout.clone(),
-            stderr: out.stderr.clone()
+            stdout: if capture_output { out.stdout.clone() } else { Vec::new() },
+            stderr: if capture_output { out.stderr.clone() } else { Vec::new() }
         };
     }
 
