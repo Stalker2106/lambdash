@@ -38,6 +38,7 @@ pub fn match_builtin(state: &mut ShellState, command: &str, args: &Vec<String>, 
         "exit" => cmd_exit(),
         "export" => cmd_export(args, input),
         "history" => cmd_history(state, args),
+        "jobs" => cmd_jobs(state),
         "pwd" => cmd_pwd(),
         "fg" => cmd_fg(state, args),
         _ => Err(ShellError::NoBuiltin)
@@ -124,16 +125,41 @@ fn cmd_pwd() -> Result<CmdOutput, ShellError> {
     output.status = Some(0);
     return Ok(output);
 }
-
 fn cmd_export(args: &Vec<String>, input: &Option<Vec<u8>>) -> Result<CmdOutput, ShellError> {
     if args.len() <= 0 {
-        return execute_program("env", &Vec::new(), input, true);
+        return execute_program("env", &Vec::new(), input, None, true);
     }
     for arg in args {
         let kv = arg.split('=').collect::<Vec<&str>>();
         env::set_var(kv[0].to_string(), kv[1].to_string());
     }
     return Ok(CmdOutput::from_status(0));
+}
+
+fn cmd_jobs(state: &mut ShellState) -> Result<CmdOutput, ShellError> {
+    let mut output = CmdOutput::new();
+    let mut cursor = Cursor::new(&mut output.stdout);
+
+    if state.jobs.is_empty() {
+        output.status = Some(0);
+        return Ok(output);
+    }
+
+    for (job_id, job_cmd, child) in state.jobs.iter_mut() {
+        let status_str = match child.try_wait() {
+            Ok(Some(exit_status)) => {
+                // Keep jobs managed in run loop; if completed, show Done and continue listing.
+                format!("Done ({})", exit_status.code().unwrap_or(-1))
+            }
+            Ok(None) => "Running".to_string(),
+            Err(_) => "Unknown".to_string(),
+        };
+
+        cursor.queue(Print(format!("[{}] {} {}\n", job_id, status_str, job_cmd))).unwrap();
+    }
+
+    output.status = Some(0);
+    Ok(output)
 }
 
 fn cmd_fg(state: &mut ShellState, args: &[String]) -> Result<CmdOutput, ShellError> {

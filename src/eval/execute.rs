@@ -2,20 +2,24 @@ use std::{io::Write, process::{self, Child, Stdio}};
 
 use crate::core::{cmdoutput::CmdOutput, error::{ShellError, StatusEnum}};
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone)]
 pub enum ExecutionError {
-    CommandNotFound = 127,
-    ExecutionFailed = 128,
-    FailedToWriteStdin = 129
+    CommandNotFound(String),
+    ExecutionFailed,
+    FailedToWriteStdin
 }
 
 impl StatusEnum for ExecutionError {
     fn status(&self) -> u16 {
-        *self as u16
+        match self {
+            ExecutionError::CommandNotFound(_) => 127,
+            ExecutionError::ExecutionFailed => 128,
+            ExecutionError::FailedToWriteStdin => 129,
+        }
     }
 }
 
-pub fn spawn_program(program: &str, args: &Vec<String>, input: &Option<Vec<u8>>, capture_output: bool) -> Result<Child, ShellError> {
+pub fn spawn_program(program: &str, args: &Vec<String>, input: &Option<Vec<u8>>, local_env: Option<&Vec<(String, String)>>, capture_output: bool) -> Result<Child, ShellError> {
   let mut process = process::Command::new(program);
 
   let stdin = if input.is_some() {
@@ -29,11 +33,18 @@ pub fn spawn_program(program: &str, args: &Vec<String>, input: &Option<Vec<u8>>,
       .stdout(if capture_output { Stdio::piped() } else { Stdio::inherit() })
       .stderr(if capture_output { Stdio::piped() } else { Stdio::inherit() });
 
+  // Inject the local environment variables if any
+  if let Some(env_vars) = local_env {
+      for (key, value) in env_vars {
+          process.env(key, value);
+      }
+  }
+
   // Spawn the process
   let mut child = match process.spawn() {
       Ok(child) => child,
       Err(_error) => {
-          return Err(ShellError::Execution(ExecutionError::CommandNotFound));
+          return Err(ShellError::Execution(ExecutionError::CommandNotFound(program.to_string())));
       }
   };
 
@@ -49,8 +60,8 @@ pub fn spawn_program(program: &str, args: &Vec<String>, input: &Option<Vec<u8>>,
   return Ok(child)
 }
 
-pub fn execute_program(program: &str, args: &Vec<String>, input: &Option<Vec<u8>>, capture_output: bool) -> Result<CmdOutput, ShellError> {
-  match spawn_program(program, args, input, capture_output) {
+pub fn execute_program(program: &str, args: &Vec<String>, input: &Option<Vec<u8>>, local_env: Option<&Vec<(String, String)>>, capture_output: bool) -> Result<CmdOutput, ShellError> {
+  match spawn_program(program, args, input, local_env, capture_output) {
       Ok(mut child) => {
           if capture_output {
               match child.wait_with_output() {

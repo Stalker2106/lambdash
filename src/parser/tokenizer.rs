@@ -74,7 +74,7 @@ pub fn parse_identifier(iter: &mut Peekable<std::str::Chars>, index: &mut i32) -
     return identifier;
 }
 
-const SEPARATOR_CHARS: &str = "\"';|$<>";
+const SEPARATOR_CHARS: &str = "\"';|$<>&";
 fn parse_until_separator(iter: &mut Peekable<std::str::Chars>, index: &mut i32) -> String {
     let mut word = String::new();
     while let Some(&next) = iter.peek() {

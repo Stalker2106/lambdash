@@ -8,9 +8,14 @@ pub fn expand_variable(state: &mut ShellState, var_name: &str) -> String {
   match var_name {
       "?" => format!("{}", state.status),
       _ => {
-          match env::var(var_name) {
-              Ok(var_value) => var_value,
-              Err(_) => format!("${}", var_name)
+          // Check shell variables first, then environment variables
+          if let Some(var_value) = state.variables.get(var_name) {
+              var_value.clone()
+          } else {
+              match env::var(var_name) {
+                  Ok(var_value) => var_value,
+                  Err(_) => format!("${}", var_name)
+              }
           }
       }
   }

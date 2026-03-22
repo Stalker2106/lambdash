@@ -15,6 +15,7 @@ pub struct ShellState<'a> {
     pub jobs: Vec<(usize, String, Child)>,
     pub history: History,
     pub aliases: HashMap<String, String>,
+    pub variables: HashMap<String, String>,
     pub config: ShellConfig,
     pub stdout: &'a mut dyn Write,
     pub stderr: &'a mut dyn Write
@@ -29,6 +30,7 @@ impl<'a> ShellState<'a> {
             jobs: Vec::new(),
             history: History::load(),
             aliases: HashMap::new(),
+            variables: HashMap::new(),
             config: load(),
             stdout: out,
             stderr: err,

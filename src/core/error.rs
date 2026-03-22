@@ -43,10 +43,10 @@ impl From<ParserError> for ShellError {
 }
 
 impl ShellError {
-  pub fn to_output(&self, input: &str) -> Vec<u8> {
+  pub fn to_output(&self) -> Vec<u8> {
       match self {
           ShellError::Tokenization(error) => print_tokenization_error(error),
-          ShellError::Execution(error) => print_execution_error(error, input),
+          ShellError::Execution(error) => print_execution_error(error),
           ShellError::Builtin(error) => print_builtin_error(error),
           ShellError::Parser(error) => print_parser_error(error),
           ShellError::NoBuiltin => "The requested builtin command was not found.".as_bytes().to_vec(),
@@ -73,12 +73,12 @@ pub fn print_tokenization_error(error: &TokenizationError) -> Vec<u8> {
   return output;
 }
 
-pub fn print_execution_error(error: &ExecutionError, input: &str) -> Vec<u8>  {
+pub fn print_execution_error(error: &ExecutionError) -> Vec<u8>  {
   let mut output: Vec<u8> = Vec::new();
   let mut cursor = Cursor::new(&mut output);
   match error {
-    ExecutionError::CommandNotFound => {
-      cursor.queue(Print(&format!("{}: command not found", input))).unwrap();
+    ExecutionError::CommandNotFound(command) => {
+      cursor.queue(Print(&format!("{}: command not found", command))).unwrap();
     },
     _ => {
       cursor.queue(Print(format!("{:?}", error))).unwrap();

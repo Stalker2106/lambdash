@@ -100,7 +100,7 @@ fn main() {
                         error => {
                             state.history.submit(&expr);
                             state.status = error.status() as i32;
-                            if let Ok(error_str) = String::from_utf8(error.to_output(prompt.get_input())) {
+                            if let Ok(error_str) = String::from_utf8(error.to_output()) {
                                 state.stdout
                                     .queue(SetForegroundColor(Color::Red)).unwrap()
                                     .queue(Print(error_str)).unwrap()

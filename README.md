@@ -26,13 +26,14 @@ This shell is currently **not stable** and is intended primarily for **education
 - Input/output Pipelines
 - Input/output redirections
 - Comments
+- Jobs (Background commands '&')
+- Command env override (foo=bar mycmd)
+- Session variables (foo=bar)
 
 #### To be implemented
 
-- Background
 - (()) arithmetic expressions
 - *,? globs
-- foo=bar runtime variables assignment
 - ! negate
 - [[]] Conditions
 - $(),`` Subcommands / Subshells
